@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SignAI — Technical Architecture</title>
+<style>
+  :root {
+    --bg: #0F172A;
+    --surface: #131A33;
+    --surface-2: #1B2347;
+    --ink: #F1F5F9;
+    --muted: #94A3B8;
+    --primary: #7C5CFF;
+    --primary-2: #06B6D4;
+    --accent: #FF6F91;
+    --good: #34D399;
+    --warn: #FBBF24;
+    --line: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0;
+    background: radial-gradient(900px 500px at 100% 0%, rgba(124,92,255,0.18), transparent),
+                radial-gradient(700px 400px at 0% 100%, rgba(6,182,212,0.14), transparent),
+                var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, "Inter", system-ui, sans-serif; line-height: 1.65;
+  }
+  .page { max-width: 920px; margin: 0 auto; padding: 56px 48px; }
+  h1, h2, h3 { letter-spacing: -0.01em; }
+  h1 { font-size: 42px; font-weight: 800; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 32px; font-size: 16px; }
+  h2 {
+    font-size: 24px; margin: 48px 0 14px; padding-top: 24px;
+    border-top: 1px solid var(--line); display: flex; align-items: center; gap: 12px;
+  }
+  h2 .num {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: white;
+  }
+  h3 { font-size: 17px; color: var(--primary-2); margin: 24px 0 8px; }
+  p { color: #CBD5E1; margin: 0 0 12px; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: #E0E7FF; }
+  pre { background: rgba(0,0,0,0.35); padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); overflow-x: auto; font-size: 13px; line-height: 1.55; }
+
+  .pipeline {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 24px 0;
+  }
+  .stage {
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--line); border-radius: 12px; padding: 14px;
+    text-align: center; position: relative;
+  }
+  .stage .icon { font-size: 22px; }
+  .stage h4 { margin: 8px 0 4px; font-size: 13px; color: var(--ink); }
+  .stage p { font-size: 11px; color: var(--muted); margin: 0; }
+  .stage::after {
+    content: "→"; position: absolute; right: -10px; top: 50%; transform: translateY(-50%);
+    color: var(--primary); font-size: 18px; font-weight: 700;
+  }
+  .stage:last-child::after { display: none; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { background: rgba(255,255,255,0.04); color: var(--ink); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  tbody tr:hover { background: rgba(124,92,255,0.04); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 18px 0; }
+  .card {
+    background: rgba(255,255,255,0.025); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px;
+  }
+  .card h4 { margin: 0 0 8px; color: var(--primary); font-size: 14px; text-transform: uppercase; letter-spacing: 1.2px; }
+  .card p { font-size: 13px; }
+
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px;
+    background: rgba(124,92,255,0.15); color: #C4B5FD; border: 1px solid rgba(124,92,255,0.35);
+    margin-right: 4px;
+  }
+  .pill.cyan { background: rgba(6,182,212,0.15); color: #67E8F9; border-color: rgba(6,182,212,0.35); }
+  .pill.pink { background: rgba(255,111,145,0.15); color: #FBA1B5; border-color: rgba(255,111,145,0.35); }
+
+  ul { padding-left: 20px; color: #CBD5E1; }
+  ul li { margin: 4px 0; }
+
+  .roadmap {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 18px 0;
+  }
+  .phase {
+    background: rgba(255,255,255,0.025); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px; position: relative;
+  }
+  .phase .when {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--primary-2); margin-bottom: 6px;
+  }
+  .phase h4 { margin: 0 0 8px; color: var(--ink); font-size: 14px; }
+  .phase ul { padding-left: 18px; font-size: 12px; color: var(--muted); }
+  .phase ul li { margin: 2px 0; }
+
+  /* SVG diagram */
+  .diagram {
+    background: rgba(255,255,255,0.025); border: 1px solid var(--line);
+    border-radius: 16px; padding: 18px; margin: 20px 0;
+  }
+
+  @media (max-width: 800px) {
+    .pipeline { grid-template-columns: 1fr 1fr; }
+    .grid-2, .roadmap { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>SignAI Technical Architecture</h1>
+  <p class="sub">Camera → ASL recognition → LLM → 3D signing avatar. End-to-end design for the hackathon prototype and the path to production.</p>
+
+  <h2><span class="num">1</span>System at a Glance</h2>
+  <div class="pipeline">
+    <div class="stage"><div class="icon">📷</div><h4>Camera</h4><p>WebRTC video, 30fps</p></div>
+    <div class="stage"><div class="icon">✋</div><h4>Hand Tracking</h4><p>MediaPipe landmarks</p></div>
+    <div class="stage"><div class="icon">🧠</div><h4>Sign Classifier</h4><p>Gesture → gloss → text</p></div>
+    <div class="stage"><div class="icon">💬</div><h4>LLM</h4><p>Conversational reply</p></div>
+    <div class="stage"><div class="icon">🤖</div><h4>3D Avatar</h4><p>Text → ASL animation</p></div>
+  </div>
+
+  <p>The whole loop runs in the browser (with optional server-side LLM). The user signs in front of a webcam, sees a transcribed message in chat, gets an AI response, and watches a 3D avatar perform that response in ASL.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 860 360" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto;">
+      <defs>
+        <linearGradient id="grad1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#7C5CFF"/>
+          <stop offset="100%" stop-color="#06B6D4"/>
+        </linearGradient>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L9,3 z" fill="#7C5CFF"/>
+        </marker>
+      </defs>
+      <!-- Browser/Client box -->
+      <rect x="20" y="20" width="820" height="160" rx="14" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4 4"/>
+      <text x="36" y="42" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" letter-spacing="1.5">CLIENT (BROWSER)</text>
+
+      <!-- Camera -->
+      <rect x="40" y="60" width="130" height="80" rx="10" fill="url(#grad1)" opacity="0.18" stroke="#7C5CFF"/>
+      <text x="105" y="92" fill="#F1F5F9" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">Webcam</text>
+      <text x="105" y="110" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">getUserMedia()</text>
+      <text x="105" y="125" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">640×480 @ 30fps</text>
+
+      <!-- MediaPipe -->
+      <rect x="200" y="60" width="160" height="80" rx="10" fill="url(#grad1)" opacity="0.18" stroke="#06B6D4"/>
+      <text x="280" y="92" fill="#F1F5F9" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">MediaPipe Hands</text>
+      <text x="280" y="110" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">21 landmarks × 2</text>
+      <text x="280" y="125" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">on-device WASM/GPU</text>
+
+      <!-- Classifier -->
+      <rect x="390" y="60" width="160" height="80" rx="10" fill="url(#grad1)" opacity="0.18" stroke="#7C5CFF"/>
+      <text x="470" y="92" fill="#F1F5F9" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">Sign Classifier</text>
+      <text x="470" y="110" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">Heuristics (V0)</text>
+      <text x="470" y="125" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">CNN/Transformer (V1+)</text>
+
+      <!-- Avatar engine -->
+      <rect x="580" y="60" width="240" height="80" rx="10" fill="url(#grad1)" opacity="0.18" stroke="#06B6D4"/>
+      <text x="700" y="92" fill="#F1F5F9" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">3D Avatar Renderer</text>
+      <text x="700" y="110" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">Three.js · rigged humanoid</text>
+      <text x="700" y="125" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">Gloss-driven keyframe blender</text>
+
+      <!-- Server box -->
+      <rect x="20" y="210" width="820" height="120" rx="14" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4 4"/>
+      <text x="36" y="232" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" letter-spacing="1.5">SERVER (V1+)</text>
+
+      <rect x="120" y="248" width="200" height="64" rx="10" fill="url(#grad1)" opacity="0.18" stroke="#FF6F91"/>
+      <text x="220" y="278" fill="#F1F5F9" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">LLM (Claude / GPT)</text>
+      <text x="220" y="296" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">Text in → Text + ASL gloss out</text>
+
+      <rect x="380" y="248" width="200" height="64" rx="10" fill="url(#grad1)" opacity="0.18" stroke="#FF6F91"/>
+      <text x="480" y="278" fill="#F1F5F9" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">Gloss Generator</text>
+      <text x="480" y="296" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">English → ASL grammar</text>
+
+      <rect x="640" y="248" width="180" height="64" rx="10" fill="url(#grad1)" opacity="0.18" stroke="#FF6F91"/>
+      <text x="730" y="278" fill="#F1F5F9" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">Sign Library</text>
+      <text x="730" y="296" fill="#94A3B8" font-size="11" font-family="Inter, sans-serif" text-anchor="middle">Mocap / keyframe DB</text>
+
+      <!-- Arrows -->
+      <line x1="170" y1="100" x2="200" y2="100" stroke="#7C5CFF" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="360" y1="100" x2="390" y2="100" stroke="#7C5CFF" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="550" y1="100" x2="580" y2="100" stroke="#7C5CFF" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Classifier → LLM (down) -->
+      <path d="M470 140 L470 180 L220 180 L220 248" stroke="#7C5CFF" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+      <!-- LLM → Gloss -->
+      <line x1="320" y1="280" x2="380" y2="280" stroke="#7C5CFF" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Gloss → Sign Library -->
+      <line x1="580" y1="280" x2="640" y2="280" stroke="#7C5CFF" stroke-width="2" marker-end="url(#arrow)"/>
+      <!-- Sign library → Avatar (up) -->
+      <path d="M730 248 L730 200 L700 200 L700 140" stroke="#7C5CFF" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    </svg>
+  </div>
+
+  <h2><span class="num">2</span>Stage 1 — Sign Recognition</h2>
+  <p>The input pipeline turns raw camera frames into discrete sign tokens.</p>
+
+  <h3>2.1 Hand tracking</h3>
+  <p><span class="pill cyan">MediaPipe Hands</span> runs in-browser via WebAssembly (or GPU via WebGPU on supported devices). It outputs 21 3D landmarks per hand at 30+ fps, with built-in handedness classification.</p>
+  <pre><code>// Per-frame output
+{
+  multiHandLandmarks: [
+    [{x, y, z}, ...21 points],   // hand 1
+    [{x, y, z}, ...21 points],   // hand 2 (optional)
+  ],
+  multiHandedness: [{label: "Right", score: 0.99}, ...]
+}</code></pre>
+
+  <h3>2.2 Classifier — three tiers</h3>
+  <table>
+    <thead><tr><th>Version</th><th>Approach</th><th>Vocabulary</th><th>Use case</th></tr></thead>
+    <tbody>
+      <tr><td><b>V0 (this prototype)</b></td><td>Hand-coded heuristics over landmark geometry</td><td>~8 signs</td><td>Demo, prove the loop</td></tr>
+      <tr><td><b>V1</b></td><td>MLP / Random Forest on landmark vector + temporal smoothing</td><td>50–100 static signs + ASL alphabet</td><td>Schools, fingerspelling</td></tr>
+      <tr><td><b>V2</b></td><td>Transformer / 3D-CNN on landmark sequences (e.g. SignBERT-style)</td><td>1000+ continuous signs</td><td>Real conversation</td></tr>
+    </tbody>
+  </table>
+
+  <h3>2.3 Why heuristics first</h3>
+  <p>For the hackathon prototype, hand-rolled rules ("thumb out + index extended + pinky extended ⇒ I-LOVE-YOU") demo cleanly without training a model live. They give us an honest, runnable loop today; the same architecture swaps cleanly to ML weights later.</p>
+
+  <h3>2.4 Temporal stability</h3>
+  <p>Static-frame classification is jittery. We hold a recognized sign for <code>600 ms</code> before emitting it, and apply a <code>1500 ms</code> cooldown to prevent the same sign repeating from a single gesture. In V1, swap this for a sliding-window classifier with hysteresis.</p>
+
+  <h2><span class="num">3</span>Stage 2 — Conversational AI</h2>
+  <p>Once the user's signed input is text, this is a normal LLM round-trip — but with one twist: we ask the model to return both the natural-language reply <em>and</em> an ASL <strong>gloss</strong> sequence (the canonical word-by-word ASL token list).</p>
+
+  <pre><code>// LLM prompt template (V1)
+SYSTEM: You are SignAI, an assistant for Deaf signing users.
+Reply in two parts:
+  1. <text>Natural English reply</text>
+  2. <gloss>ASL-GLOSS TOKENS IN UPPERCASE</gloss>
+Use ASL grammar conventions (topic-comment, time markers,
+classifiers). Keep replies short — they will be signed.
+
+USER: HELLO HOW YOU?
+ASSISTANT:
+  &lt;text&gt;Hi there — how are you today?&lt;/text&gt;
+  &lt;gloss&gt;HELLO YOU HOW NOW?&lt;/gloss&gt;</code></pre>
+
+  <p><span class="pill pink">Model</span> Claude Haiku or GPT-4o-mini work for V1 — both are fast enough for sub-second turn times. <span class="pill pink">Latency target</span> &lt;1.2 s end-to-end (sign captured → avatar starts moving).</p>
+
+  <h2><span class="num">4</span>Stage 3 — Avatar Output (Text → Sign)</h2>
+  <p>The hardest part of the long-term roadmap. Going from English → ASL animation is not a literal word-for-word mapping — ASL has its own grammar (topic-comment word order, non-manual markers, classifiers, spatial referencing).</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h4>V0 (this prototype)</h4>
+      <p>Each gloss token maps to a hard-coded keyframe sequence in Three.js. The animation engine queues sequences and lerps between them. Works for a fixed vocabulary, demos beautifully.</p>
+    </div>
+    <div class="card">
+      <h4>V1+ (production path)</h4>
+      <p>A <strong>sign library</strong> built from motion-capture data (MoCap suits or pose-estimated from videos of ASL signers). Each library entry is a parametric animation with timing, intensity, and facial expression channels. The avatar renderer concatenates them.</p>
+    </div>
+    <div class="card">
+      <h4>Avatar rig</h4>
+      <p>V0 uses a hand-built humanoid (head, torso, 2-segment arms, jointed hands). V1 swaps in a rigged glTF character (Mixamo, Ready Player Me, or a deaf-community-designed avatar) with full finger and face bones.</p>
+    </div>
+    <div class="card">
+      <h4>Non-manual markers</h4>
+      <p>Eyebrows, head tilt, mouth shape carry grammatical meaning in ASL (questions, negation, conditionals). V2 needs facial blend-shapes driven by the gloss tokens — currently a known gap in most signing avatars.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">5</span>Stack &amp; Dependencies</h2>
+  <table>
+    <thead><tr><th>Layer</th><th>Tech (V0)</th><th>Tech (V1+)</th></tr></thead>
+    <tbody>
+      <tr><td>Frontend</td><td>Vanilla HTML/JS, single file</td><td>React + Vite, PWA shell</td></tr>
+      <tr><td>Hand tracking</td><td>@mediapipe/hands (CDN)</td><td>MediaPipe Tasks Vision (latest), optional WebGPU</td></tr>
+      <tr><td>Classifier</td><td>JS heuristics</td><td>TensorFlow.js model (browser) or ONNX Runtime Web</td></tr>
+      <tr><td>3D rendering</td><td>Three.js r128, custom rig</td><td>Three.js + glTF rigged avatar, IK plugin</td></tr>
+      <tr><td>LLM</td><td>Mock JS rule-based responder</td><td>Claude Haiku / GPT-4o-mini via backend proxy</td></tr>
+      <tr><td>Backend</td><td>None — fully client-side</td><td>Cloudflare Workers / Vercel Edge for LLM proxy</td></tr>
+      <tr><td>Storage</td><td>None</td><td>Postgres for users, S3 for sign-library MoCap</td></tr>
+      <tr><td>Telemetry</td><td>None</td><td>PostHog (privacy-respecting analytics)</td></tr>
+    </tbody>
+  </table>
+
+  <h2><span class="num">6</span>Data &amp; Training Plan</h2>
+  <p>The defensible asset over time is the dataset. The sign-recognition CNN is only as good as its training data, and most public ASL datasets are small.</p>
+  <ul>
+    <li><strong>Public starter datasets</strong> — WLASL (2000 signs, ~12k videos), MS-ASL, How2Sign, ASL-100-RGBD.</li>
+    <li><strong>Crowdsourced expansion</strong> — opt-in "teach SignAI" mode where users record themselves signing labeled words; pays back into the model with consent.</li>
+    <li><strong>Partner collection</strong> — collaborate with Gallaudet, RIT/NTID, and deaf-led organizations for high-quality, signer-validated data.</li>
+    <li><strong>Synthetic augmentation</strong> — pose-perturbation and 3D rendering of avatar variations to widen the distribution.</li>
+  </ul>
+
+  <h2><span class="num">7</span>Privacy &amp; Ethics</h2>
+  <ul>
+    <li><strong>On-device first.</strong> Hand tracking runs in the browser. The raw camera feed never leaves the user's machine.</li>
+    <li><strong>Server only sees text.</strong> Only the recognized text (or its embedding) goes to the LLM — same privacy posture as a normal chatbot.</li>
+    <li><strong>Deaf-led product decisions.</strong> Every sign-library entry, avatar design, and grammar rule is reviewed by deaf signers, not invented by hearing engineers.</li>
+    <li><strong>Avatar consent.</strong> If we mocap real signers for the library, they're paid, credited, and retain rights over their likeness.</li>
+    <li><strong>No facial recognition.</strong> We don't store identifiable face data; only landmark vectors stripped of identity.</li>
+  </ul>
+
+  <h2><span class="num">8</span>Roadmap</h2>
+  <div class="roadmap">
+    <div class="phase">
+      <div class="when">Hackathon (now)</div>
+      <h4>V0 — Demo</h4>
+      <ul>
+        <li>Browser-only prototype</li>
+        <li>~8 signs, heuristic classifier</li>
+        <li>Mock chatbot replies</li>
+        <li>Three.js stick humanoid</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="when">+1 Month</div>
+      <h4>V1 — Closed alpha</h4>
+      <ul>
+        <li>TF.js classifier (50 signs + alphabet)</li>
+        <li>Real LLM via API proxy</li>
+        <li>Rigged glTF avatar</li>
+        <li>Pilot with 10 deaf testers</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="when">+3 Months</div>
+      <h4>V2 — Public beta</h4>
+      <ul>
+        <li>Continuous-signing model</li>
+        <li>200+ signs, ASL grammar</li>
+        <li>Mobile PWA + iOS app</li>
+        <li>School pilot program</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="when">+6–12 Months</div>
+      <h4>V3 — Production</h4>
+      <ul>
+        <li>BSL, RSL, regional signs</li>
+        <li>Facial / non-manual markers</li>
+        <li>Enterprise / accessibility-compliance SDK</li>
+        <li>Mocap-quality avatar library</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="num">9</span>Honest Risks</h2>
+  <ul>
+    <li><strong>ASL is hard.</strong> Continuous, conversational ASL recognition is an open research problem. We will be wrong sometimes; the product needs gentle correction UX (suggest edits, fingerspell fallback).</li>
+    <li><strong>Avatar acceptance.</strong> Some deaf communities are wary of AI avatars replacing human interpreters. We position SignAI as a complement to interpreters (everyday, low-stakes, on-demand) — not a replacement for high-stakes settings (medical, legal).</li>
+    <li><strong>Data scarcity.</strong> ASL-signer-validated data at the scale of English text is decades away. We compensate with strong heuristics, fingerspelling fallback, and iterative learning from user corrections.</li>
+    <li><strong>Latency.</strong> Sub-second feels native; over 2 seconds breaks conversation flow. We design every layer with this budget in mind.</li>
+  </ul>
+
+  <h2><span class="num">10</span>What's Built Today</h2>
+  <p>The accompanying file <code>sign-ai-prototype.html</code> implements the full V0 loop end-to-end:</p>
+  <ul>
+    <li>Live webcam → MediaPipe Hands landmarks (21 × 2 points/frame)</li>
+    <li>Heuristic sign classifier for: <span class="pill">hello</span> <span class="pill">yes</span> <span class="pill">no</span> <span class="pill">thank-you</span> <span class="pill">help</span> <span class="pill">please</span> <span class="pill">i-love-you</span> <span class="pill">stop</span></li>
+    <li>Hold-and-cooldown temporal stability (no flicker)</li>
+    <li>Chat UI with user/bot turns and ASL gloss display</li>
+    <li>Three.js humanoid avatar with custom 2-segment arm rig and finger curl</li>
+    <li>Keyframed sign animations driven by the AI response gloss</li>
+    <li>Fully self-contained — opens in any modern browser, no backend required</li>
+  </ul>
+  <p>That's the proof: the loop closes. Everything else is scale.</p>
+</main>
+</body>
+</html>

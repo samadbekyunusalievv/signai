@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SignAI — Research & Market Statistics</title>
+<style>
+  :root {
+    --bg: #FAFAF7;
+    --surface: #FFFFFF;
+    --ink: #0F172A;
+    --muted: #64748B;
+    --primary: #6D28D9;
+    --primary-2: #06B6D4;
+    --accent: #DB2777;
+    --good: #059669;
+    --line: #E2E8F0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: ui-serif, Georgia, "Times New Roman", serif; line-height: 1.6;
+  }
+  .page {
+    max-width: 880px; margin: 0 auto; padding: 64px 56px;
+    background: var(--surface); min-height: 100vh;
+  }
+  h1, h2, h3, h4 { font-family: "Inter", ui-sans-serif, system-ui, sans-serif; line-height: 1.2; }
+  h1 {
+    font-size: 44px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.02em;
+  }
+  .subtitle { color: var(--muted); font-size: 16px; margin: 0 0 36px; font-family: "Inter", ui-sans-serif, sans-serif; font-style: italic; }
+  h2 {
+    font-size: 26px; margin: 48px 0 12px; padding-top: 28px;
+    border-top: 1px solid var(--line); letter-spacing: -0.01em;
+  }
+  h2:first-of-type { border-top: none; padding-top: 0; }
+  h3 { font-size: 18px; margin: 24px 0 8px; color: var(--primary); }
+  p { margin: 0 0 14px; }
+  .lede { font-size: 19px; color: #1E293B; margin-bottom: 22px; }
+  .meta {
+    display: flex; gap: 18px; flex-wrap: wrap; padding: 12px 16px;
+    background: linear-gradient(90deg, rgba(109,40,217,0.06), rgba(6,182,212,0.06));
+    border-left: 3px solid var(--primary); border-radius: 4px;
+    font-family: "Inter", ui-sans-serif, sans-serif; font-size: 13px; color: var(--muted);
+    margin-bottom: 28px;
+  }
+  .meta b { color: var(--ink); }
+
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 22px 0 6px;
+  }
+  .stat {
+    background: linear-gradient(180deg, #FFFFFF, #F8FAFC);
+    border: 1px solid var(--line); border-radius: 12px; padding: 18px;
+  }
+  .stat .num { font-family: "Inter", ui-sans-serif, sans-serif; font-size: 32px; font-weight: 800; color: var(--primary); letter-spacing: -0.02em; }
+  .stat .label { font-family: "Inter", ui-sans-serif, sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-top: 4px; }
+  .stat .src { font-family: "Inter", ui-sans-serif, sans-serif; font-size: 11px; color: var(--muted); margin-top: 6px; font-style: italic; }
+
+  blockquote {
+    margin: 18px 0; padding: 14px 18px; background: #FDF4FF;
+    border-left: 4px solid var(--accent); border-radius: 4px; font-style: italic; color: #581C87;
+  }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 18px 0;
+    font-family: "Inter", ui-sans-serif, sans-serif; font-size: 14px;
+  }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { background: #F1F5F9; font-weight: 600; color: var(--ink); }
+  tbody tr:hover { background: #FAFAF7; }
+  td.num { font-variant-numeric: tabular-nums; color: var(--primary); font-weight: 600; }
+
+  ul.compact { padding-left: 22px; }
+  ul.compact li { margin: 4px 0; }
+
+  .callout {
+    margin: 22px 0; padding: 18px 22px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(109,40,217,0.06), rgba(6,182,212,0.06));
+    border: 1px solid rgba(109,40,217,0.15);
+  }
+  .callout h4 { margin: 0 0 8px; color: var(--primary); font-size: 16px; }
+
+  /* simple bar chart */
+  .bars { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; font-family: "Inter", sans-serif; font-size: 13px; }
+  .bar-row { display: grid; grid-template-columns: 220px 1fr 100px; align-items: center; gap: 10px; }
+  .bar-track { background: #F1F5F9; border-radius: 6px; height: 18px; overflow: hidden; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-2)); border-radius: 6px; }
+  .bar-row .val { color: var(--primary); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  footer.refs {
+    margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line);
+    font-family: "Inter", ui-sans-serif, sans-serif; font-size: 12px; color: var(--muted);
+  }
+  footer.refs ol { padding-left: 18px; }
+  footer.refs a { color: var(--primary); text-decoration: none; word-break: break-all; }
+  footer.refs a:hover { text-decoration: underline; }
+
+  @media print { .page { padding: 32px; max-width: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>SignAI: Research &amp; Market Statistics</h1>
+  <p class="subtitle">Why deaf signers are the most underserved AI users in the world</p>
+  <div class="meta">
+    <span><b>Project</b> SignAI</span>
+    <span><b>Document</b> Research &amp; Stats</span>
+    <span><b>Audience</b> Hackathon judges</span>
+    <span><b>Date</b> May 2026</span>
+  </div>
+
+  <p class="lede">Modern AI assistants — ChatGPT, Gemini, Claude — assume the user can read, type, listen, and speak. That assumption excludes tens of millions of people who communicate primarily in sign language. This document quantifies the gap and the opportunity.</p>
+
+  <h2>1 · Headline Numbers</h2>
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="num">1.5B</div>
+      <div class="label">People with hearing loss</div>
+      <div class="src">WHO global estimate</div>
+    </div>
+    <div class="stat">
+      <div class="num">430M</div>
+      <div class="label">Disabling hearing loss today</div>
+      <div class="src">WHO; 700M projected by 2050</div>
+    </div>
+    <div class="stat">
+      <div class="num">~70M</div>
+      <div class="label">Signing deaf community</div>
+      <div class="src">World Federation of the Deaf</div>
+    </div>
+    <div class="stat">
+      <div class="num">200+</div>
+      <div class="label">Distinct sign languages</div>
+      <div class="src">Ethnologue / WFD</div>
+    </div>
+    <div class="stat">
+      <div class="num">~80%</div>
+      <div class="label">Of deaf people not fluent in written English</div>
+      <div class="src">Sign.MT literacy review</div>
+    </div>
+    <div class="stat">
+      <div class="num">2.5B</div>
+      <div class="label">Hearing-loss population by 2050</div>
+      <div class="src">WHO projection</div>
+    </div>
+  </div>
+
+  <h2>2 · The Deaf Population, Broken Down</h2>
+  <p>Hearing loss exists on a spectrum. The global figure most commonly cited — 1.5 billion — counts everyone with any measurable loss. The clinically relevant population for an AI accessibility product is much narrower:</p>
+
+  <div class="bars">
+    <div class="bar-row"><span>Any hearing loss (1.5B)</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="val">100%</span></div>
+    <div class="bar-row"><span>Disabling hearing loss (430M)</span><div class="bar-track"><div class="bar-fill" style="width:28.7%"></div></div><span class="val">28.7%</span></div>
+    <div class="bar-row"><span>Signing deaf community (~70M)</span><div class="bar-track"><div class="bar-fill" style="width:4.7%"></div></div><span class="val">4.7%</span></div>
+    <div class="bar-row"><span>Sign as primary language (~24M)</span><div class="bar-track"><div class="bar-fill" style="width:1.6%"></div></div><span class="val">1.6%</span></div>
+  </div>
+
+  <p>SignAI's core user is the 70M-person signing deaf community. Within that, roughly 24M use sign as their primary, native language — the people for whom an AI text box is genuinely a foreign-language interface.</p>
+
+  <h2>3 · The Literacy Gap Is the Real Story</h2>
+  <p>Even where deaf people can technically read, fluency is uneven. This is not a comment on intelligence — it's structural. Spoken languages encode sound; deaf children who never hear English struggle to map written English to anything internal.</p>
+
+  <blockquote>"Only ~20% of deaf adults are fluent in written English. In some regions illiteracy among deaf adults exceeds 75%." — Sign.MT and supporting accessibility studies</blockquote>
+
+  <p>Implication: a product that requires the user to type fluent English (which is what every chatbot today requires) excludes the majority of its potential signing users <em>before they even open the app</em>.</p>
+
+  <h3>What "sign-only" actually means</h3>
+  <p>The user originally asked about people who exclusively use sign — who cannot speak, text, read, or listen. The truthful answer from accessibility research is that <strong>pure exclusivity is rare</strong>; most deaf adults have some written-language skill even if limited. But functional sign-first users — people for whom signing is faster, more comfortable, and more accurate than reading or typing — are common, and they are the ones being shut out today. The honest hackathon framing: <em>"tens of millions of signing-first users currently have a much worse AI experience than hearing users do."</em></p>
+
+  <h2>4 · ASL Specifically (Our V1 Target)</h2>
+  <table>
+    <thead><tr><th>Population</th><th>Estimate</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Native / primary ASL users (US)</td><td class="num">250K – 500K</td><td>Gallaudet, ASL Bloom</td></tr>
+      <tr><td>All US adults reporting some sign-language use</td><td class="num">6.4M – 7.0M</td><td>National Health Interview Survey</td></tr>
+      <tr><td>Of whom are hearing (allies, students, family)</td><td class="num">~83%</td><td>NHIS analysis</td></tr>
+      <tr><td>Of whom are deaf signers</td><td class="num">~1.1M – 1.2M</td><td>Derived</td></tr>
+    </tbody>
+  </table>
+  <p>The hearing 83% is not noise — those are interpreters, family members, hearing children of deaf adults (CODAs), educators, and ASL students. They are also the easiest "second audience" for SignAI: people who already want better tools to communicate with deaf signers.</p>
+
+  <h2>5 · Why AI Doesn't Reach Them Today</h2>
+  <ul class="compact">
+    <li><strong>Text-only input.</strong> Every major chatbot UI is a text box. Sign-first users either type slowly in a language they're not fluent in, or skip the product entirely.</li>
+    <li><strong>Text-only output.</strong> Even when the model writes the answer, the user reads it in the same imperfect second language. Comprehension drops.</li>
+    <li><strong>Voice features don't help.</strong> Voice-mode chatbots assume hearing. They are explicitly inaccessible to this audience.</li>
+    <li><strong>Captions are not sign language.</strong> Captions are still written English. They help mid-loss users; they do not solve the problem for sign-first users.</li>
+    <li><strong>No production-grade ASL→text or text→ASL avatar in major LLM products.</strong> The infrastructure simply doesn't exist in the consumer AI stack.</li>
+  </ul>
+
+  <h2>6 · Existing Players (Competitive Landscape)</h2>
+  <table>
+    <thead><tr><th>Product</th><th>Direction</th><th>Status</th><th>Gap</th></tr></thead>
+    <tbody>
+      <tr><td>Silence Speaks (UK)</td><td>Text/speech → 3D signing avatar</td><td>Piloted by Transport for London</td><td>One-way; no AI conversation</td></tr>
+      <tr><td>SignAvatar (Serbia)</td><td>Speech → sign avatar (announcements)</td><td>Belgrade airport pilot</td><td>Public-address only</td></tr>
+      <tr><td>Terp 360 (Kenya)</td><td>Speech → sign avatar (multi-language)</td><td>Africa Prize winner; expanding</td><td>One-way translation</td></tr>
+      <tr><td>Hand Sign Talk Talk</td><td>Text → 3D signing avatar</td><td>CES 2025 Innovation Award</td><td>One-way; no input recognition</td></tr>
+      <tr><td>Academic ASL recognition</td><td>Camera → text (MediaPipe + CNN)</td><td>99%+ alphabet accuracy in papers</td><td>Not productized; no LLM loop</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <h4>Where SignAI is different</h4>
+    <p>Every existing product is a one-way pipe — usually <em>text → avatar</em>. None of them close the loop with a real AI conversation: <strong>camera → sign recognition → LLM → avatar response</strong>. That's the opening, and it's the entire premise of this hackathon submission.</p>
+  </div>
+
+  <h2>7 · Market Sizing (TAM / SAM / SOM)</h2>
+  <table>
+    <thead><tr><th>Layer</th><th>Definition</th><th>Population</th></tr></thead>
+    <tbody>
+      <tr><td><b>TAM</b> — Total Addressable Market</td><td>All signing deaf people globally + hearing allies who interact with them</td><td class="num">~120M</td></tr>
+      <tr><td><b>SAM</b> — Serviceable Addressable Market</td><td>ASL signers + ASL-adjacent users in English-speaking countries</td><td class="num">~8M</td></tr>
+      <tr><td><b>SOM</b> — Serviceable Obtainable Market (3 yrs)</td><td>ASL-first users in US/UK/Canada reachable via accessibility orgs &amp; schools</td><td class="num">~500K</td></tr>
+    </tbody>
+  </table>
+  <p>Beyond direct users, the secondary market is large: <strong>schools for the deaf, government accessibility mandates (ADA, EAA in EU), enterprise compliance, and customer-service deployments</strong> are all distribution channels with real budgets.</p>
+
+  <h2>8 · Why Now</h2>
+  <ul class="compact">
+    <li><strong>Hand tracking is solved.</strong> MediaPipe Hands runs in-browser, on-device, at 30+ fps. Recent academic results report 95–99%+ accuracy for ASL alphabet/static-sign recognition with MediaPipe + lightweight classifiers.</li>
+    <li><strong>LLMs are cheap and fast.</strong> A 2-second turnaround from sign → text → response → animation is achievable with a small distilled model.</li>
+    <li><strong>3D avatar tech is consumer-grade.</strong> Three.js, Unity WebGL, and rigged 3D characters work in any modern browser.</li>
+    <li><strong>Regulation is tightening.</strong> The EU Accessibility Act (in force June 2025) and updated ADA Title II web-accessibility rules make sign-language access a near-term compliance issue, not a "nice to have."</li>
+    <li><strong>Nothing in the major AI stack does this yet.</strong> First-mover window is open.</li>
+  </ul>
+
+  <h2>9 · Conclusion</h2>
+  <p>The signing deaf population is large enough to matter (~70M), underserved enough to be obvious (no major chatbot supports sign), and reachable through proven channels (schools, accessibility orgs, enterprise compliance). The technical building blocks exist; nobody has assembled them into a two-way AI loop. SignAI is that assembly.</p>
+
+  <footer class="refs">
+    <h3 style="color:var(--ink); font-size:14px; margin:0 0 8px; text-transform:uppercase; letter-spacing:1px;">References</h3>
+    <ol>
+      <li><a href="https://www.who.int/news-room/fact-sheets/detail/deafness-and-hearing-loss">WHO — Deafness and hearing loss fact sheet</a></li>
+      <li><a href="https://wfdeaf.org/contact/faqs/">World Federation of the Deaf — FAQs (signing-community estimate)</a></li>
+      <li><a href="https://sign.mt/docs/docs/facts/population.html">Sign.MT — Deaf population documentation</a></li>
+      <li><a href="https://sign.mt/docs/docs/facts/literacy.html">Sign.MT — Literacy among deaf populations</a></li>
+      <li><a href="https://www.aslbloom.com/blog/how-many-people-use-asl">ASL Bloom — How many people use ASL?</a></li>
+      <li><a href="https://www.gallaudet.edu/documents/Research-Support-and-International-Affairs/ASL_Users.pdf">Gallaudet — ASL Users in the United States</a></li>
+      <li><a href="https://pubmed.ncbi.nlm.nih.gov/36423340/">National Health Interview Survey — sign language use</a></li>
+      <li><a href="https://infoguides.rit.edu/c.php?g=380750&p=9393643">RIT — Deaf demographics &amp; employment</a></li>
+      <li><a href="https://arxiv.org/abs/2305.05296">Kumar et al. — MediaPipe + CNNs for real-time ASL gesture recognition</a></li>
+      <li><a href="https://www.signavatar.org/">SignAvatar (Serbia) — speech-to-sign avatar</a></li>
+      <li><a href="https://silencespeaks.io/news/wired/">Silence Speaks (UK) — AI signing avatars</a></li>
+      <li><a href="https://www.cnn.com/world/africa/speech-to-sign-language-app-wins-africa-innovation-prize-spc">CNN — Terp 360 wins Africa Engineering Prize</a></li>
+      <li><a href="https://www.ces.tech/ces-innovation-awards/2025/ai-sign-language-translation-service-hand-sign-talk-talk/">CES 2025 — Hand Sign Talk Talk</a></li>
+    </ol>
+  </footer>
+</main>
+</body>
+</html>
