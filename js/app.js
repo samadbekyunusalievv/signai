@@ -11,6 +11,7 @@
   const rec = new R.Recognizer({ mode: "words" });
   const mock = new mockLLM.MockLLM();
   let tray = [];               // tokens waiting to be sent
+  let trayAlts = [];           // per token: other likely signs the recognizer considered
   let lastTokenAt = 0;
   let handsVisible = 0;
   const history = [];          // chat history for API mode [{role, content}]
@@ -84,8 +85,9 @@
   $("mode-letters").addEventListener("click", () => setMode("letters"));
 
   // ---------------- message tray ----------------
-  function addToken(token) {
+  function addToken(token, alts = []) {
     tray.push(token);
+    trayAlts.push(alts.filter(a => a !== token).slice(0, 2));
     lastTokenAt = performance.now();
     flashChip(token);
     renderTray();
@@ -97,24 +99,26 @@
       el.innerHTML = '<span class="tray-placeholder">Signs you make appear here…</span>';
       return;
     }
-    tray.forEach(t => {
+    tray.forEach((t, i) => {
       const s = document.createElement("span");
-      s.className = "tok" + (vocab.isLetterToken(t) ? " letter" : "");
+      const alts = trayAlts[i] || [];
+      s.className = "tok" + (vocab.isLetterToken(t) ? " letter" : "") + (alts.length ? " unsure" : "");
+      if (alts.length) s.title = "Could also be: " + alts.map(labelOf).join(", ");
       s.textContent = vocab.isLetterToken(t) ? vocab.letterOf(t).toUpperCase() : (vocab.byId[t] ? vocab.byId[t].text.toLowerCase() : t);
       el.appendChild(s);
     });
   }
-  $("tray-undo").addEventListener("click", () => { tray.pop(); renderTray(); });
-  $("tray-clear").addEventListener("click", () => { tray = []; renderTray(); });
+  $("tray-undo").addEventListener("click", () => { tray.pop(); trayAlts.pop(); renderTray(); });
+  $("tray-clear").addEventListener("click", () => { tray = []; trayAlts = []; renderTray(); });
   $("tray-send").addEventListener("click", sendTray);
 
   function sendTray() {
     if (!tray.length) return;
-    const tokens = tray.slice();
-    tray = []; renderTray();
+    const tokens = tray.slice(), alts = trayAlts.slice();
+    tray = []; trayAlts = []; renderTray();
     const text = vocab.tokensToText(tokens);
     appendMessage("user", text, vocab.tokensToGloss(tokens), "You (signed)");
-    respond({ tokens, text: null, display: text });
+    respond({ tokens, alts, text: null, display: text });
   }
 
   // auto-send: after a pause with hands lowered (or a long pause)
@@ -214,7 +218,9 @@
     updateBadge(report, now);
     updateCandidates(report);
     if (report.emitted) {
-      addToken(report.emitted);
+      // keep close runner-ups so the AI can repair a misread sign
+      const alts = (report.top || []).filter(t => t.score > 0.35 && t.label !== report.emitted).map(t => t.label);
+      addToken(report.emitted, alts);
       firedUntil = now + 450;
     }
 
@@ -300,24 +306,82 @@
     chatEl.innerHTML = "";
     history.length = 0;
     mock.reset();
-    tray = []; renderTray();
+    tray = []; trayAlts = []; renderTray();
     if (avatar) avatar.stop();
     appendMessage("bot", "Conversation cleared. Sign or type to start again.");
   });
 
   // ---------------- AI backends ----------------
-  const AI = { mode: "mock", base: "https://api.openai.com/v1", model: "gpt-4o-mini", key: "" };
+  const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai";
+  const AI = { mode: "mock", base: "https://api.openai.com/v1", model: "gpt-4o-mini", key: "",
+               geminiModel: "gemini-2.5-flash", geminiKey: "" };
   try {
     const saved = JSON.parse(localStorage.getItem("signai_api") || "null");
     if (saved) Object.assign(AI, saved);
   } catch (_) { /* storage unavailable */ }
   $("api-base").value = AI.base; $("api-model").value = AI.model; $("api-key").value = AI.key || "";
   $("remember-key").checked = !!AI.key;
+  let userPickedModel = !!AI.geminiPicked;
+  $("gemini-model").addEventListener("change", () => { userPickedModel = true; });
+  $("gemini-key").value = AI.geminiKey || ""; $("gemini-remember").checked = !!AI.geminiKey;
+  setGeminiModels([AI.geminiModel]);
   updateAIModeUI();
 
+  // the provider the chat actually calls
+  function provider() {
+    if (AI.mode === "gemini") return { base: GEMINI_BASE, model: AI.geminiModel, key: AI.geminiKey, name: "Gemini" };
+    return { base: AI.base, model: AI.model, key: AI.key, name: AI.model };
+  }
+
   $("ai-toggle").addEventListener("click", () => { $("ai-settings").hidden = !$("ai-settings").hidden; });
-  $("mode-mock").addEventListener("click", () => { AI.mode = "mock"; saveAI(); updateAIModeUI(); });
-  $("mode-api").addEventListener("click", () => { $("api-fields").hidden = false; $("api-base").focus(); });
+  $("mode-mock").addEventListener("click", () => { AI.mode = "mock"; saveAI(); updateAIModeUI(); showFields(null); });
+  $("mode-gemini").addEventListener("click", () => { showFields("gemini"); $("gemini-key").focus(); });
+  $("mode-api").addEventListener("click", () => { showFields("api"); $("api-base").focus(); });
+  function showFields(which) {
+    $("gemini-fields").hidden = which !== "gemini";
+    $("api-fields").hidden = which !== "api";
+  }
+
+  // list the Gemini models this key can use, newest "flash" first (free tier friendly)
+  let modelsLoadedFor = "";
+  $("gemini-key").addEventListener("change", loadGeminiModels);
+  async function loadGeminiModels() {
+    const key = $("gemini-key").value.trim();
+    if (!key || key === modelsLoadedFor) return;
+    try {
+      const res = await fetch(GEMINI_BASE + "/models", { headers: { Authorization: "Bearer " + key } });
+      if (!res.ok) throw new Error(res.status);
+      const ids = ((await res.json()).data || []).map(m => String(m.id).replace(/^models\//, ""))
+        .filter(id => /^gemini-/.test(id) && !/(embedding|image|tts|audio|live|vision|exp|preview)/.test(id));
+      if (!ids.length) return;
+      const rank = id => (/flash/.test(id) ? 0 : 1) * 1000 - parseFloat((id.match(/gemini-(\d+(?:\.\d+)?)/) || [0, 0])[1]) * 10 + (/lite/.test(id) ? 1 : 0);
+      ids.sort((a, b) => rank(a) - rank(b));
+      setGeminiModels(ids);
+      modelsLoadedFor = key;
+    } catch (e) {
+      console.warn("Could not list Gemini models", e);
+    }
+  }
+  function setGeminiModels(ids) {
+    const sel = $("gemini-model");
+    const current = userPickedModel ? AI.geminiModel : ids[0];
+    sel.innerHTML = "";
+    [...new Set(ids)].forEach(id => { const o = document.createElement("option"); o.value = o.textContent = id; sel.appendChild(o); });
+    sel.value = ids.includes(current) ? current : ids[0];
+  }
+
+  $("gemini-save").addEventListener("click", async () => {
+    const key = $("gemini-key").value.trim();
+    if (!key) { $("gemini-key").focus(); return; }
+    await loadGeminiModels();
+    AI.geminiKey = key;
+    AI.geminiModel = $("gemini-model").value || "gemini-2.5-flash";
+    AI.geminiPicked = userPickedModel;
+    AI.mode = "gemini";
+    saveAI(); updateAIModeUI();
+    $("ai-settings").hidden = true;
+    appendMessage("note", `Using Google Gemini (${AI.geminiModel})`);
+  });
   $("api-save").addEventListener("click", () => {
     AI.base = ($("api-base").value.trim() || "https://api.openai.com/v1").replace(/\/+$/, "");
     AI.model = $("api-model").value.trim() || "gpt-4o-mini";
@@ -330,38 +394,59 @@
   });
   function saveAI() {
     try {
-      const keep = { mode: AI.mode, base: AI.base, model: AI.model, key: $("remember-key").checked ? AI.key : "" };
+      const keep = { mode: AI.mode, base: AI.base, model: AI.model, geminiModel: AI.geminiModel, geminiPicked: !!AI.geminiPicked,
+                     key: $("remember-key").checked ? AI.key : "",
+                     geminiKey: $("gemini-remember").checked ? AI.geminiKey : "" };
       localStorage.setItem("signai_api", JSON.stringify(keep));
     } catch (_) { /* ignore */ }
   }
   function updateAIModeUI() {
-    $("ai-mode-label").textContent = AI.mode === "api" ? AI.model : "Mock LLM";
-    $("mode-mock").classList.toggle("active", AI.mode === "mock");
-    $("mode-api").classList.toggle("active", AI.mode === "api");
+    $("ai-mode-label").textContent = AI.mode === "gemini" ? "Gemini" : AI.mode === "api" ? AI.model : "Mock LLM";
+    ["mock", "gemini", "api"].forEach(m => $("mode-" + m).classList.toggle("active", AI.mode === m));
   }
 
-  const SYSTEM_PROMPT = () => `You are SignAI, a warm, concise assistant for Deaf and hard-of-hearing signers.
-The user's messages come either typed or recognised from sign language by a webcam (then they look like ASL gloss, e.g. "Me name S-A-M").
-Your reply is signed by a 3D avatar, so keep it to 1–2 short sentences.
+  const SYSTEM_PROMPT = () => `You are SignAI, a warm, patient assistant for Deaf and hard-of-hearing people who use American Sign Language.
+Many users find written English hard, so:
+- Answer in very simple, short sentences (1–3), plain words, no jargon, no lists, no markdown.
+- You know a lot: answer real questions (health, directions, how-to, facts, news you know of) helpfully. Say so honestly when unsure.
 
-Respond with strict JSON only:
-{"text": "<your English reply>", "gloss": ["token", ...]}
+The user's message is either typed, or recognised from signing by a webcam. Signed input arrives as ASL gloss, e.g. "ME NAME S-A-M" or "WATER WHERE".
+- ASL word order differs from English and recognition can be wrong: some signs come with alternatives the camera also considered, like "THINK[or: ONE]". Work out the most likely meaning from context.
+- If the meaning is really unclear, ask one short yes/no question to check.
 
-Gloss tokens must be chosen from this list (the avatar can only sign these):
+Your reply is also signed by a 3D avatar. Respond with strict JSON only, no code fences:
+{"understood": "<the user's message in plain English>", "text": "<your reply>", "gloss": ["token", ...]}
+
+"gloss" summarises your reply for the avatar, 1–8 tokens in ASL order (topic first, question words last), chosen ONLY from:
 ${vocab.WORDS.map(w => w.id).join(", ")}
-To fingerspell a word (names, words without a sign) use one token per letter: "letter:s", "letter:a", "letter:m".
-Use 1–6 tokens in ASL order (topic first, question words at the end). If nothing fits, use ["ok"].`;
+To fingerspell a name or key word with no sign, use one token per letter: "letter:s", "letter:a", "letter:m". If nothing fits, use ["ok"].`;
+
+  // gloss with recognizer alternatives, e.g. "ME THINK[or: ONE] S-A-M"
+  function glossWithAlts(tokens, alts) {
+    const out = []; let spelled = [];
+    const flush = () => { if (spelled.length) { out.push(spelled.join("-").toUpperCase()); spelled = []; } };
+    tokens.forEach((t, i) => {
+      if (vocab.isLetterToken(t)) { spelled.push(vocab.letterOf(t)); return; }
+      flush();
+      const a = (alts && alts[i]) || [];
+      out.push(t.toUpperCase() + (a.length ? `[or: ${a.map(x => x.toUpperCase()).join(" / ")}]` : ""));
+    });
+    flush();
+    return out.join(" ");
+  }
 
   async function callAPI(userContent) {
+    const p = provider();
     const messages = [{ role: "system", content: SYSTEM_PROMPT() }, ...history.slice(-12), { role: "user", content: userContent }];
-    const body = { model: AI.model, messages, temperature: 0.6, max_tokens: 250, response_format: { type: "json_object" } };
+    const body = { model: p.model, messages, temperature: 0.5, max_tokens: 400, response_format: { type: "json_object" } };
     const headers = { "Content-Type": "application/json" };
-    if (AI.key) headers.Authorization = "Bearer " + AI.key;
-    let res = await fetch(AI.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });
+    if (p.key) headers.Authorization = "Bearer " + p.key;
+    let res = await fetch(p.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });
     if (res.status === 400) {   // some servers do not support response_format
       delete body.response_format;
-      res = await fetch(AI.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });
+      res = await fetch(p.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });
     }
+    if (res.status === 429) throw new Error("rate limit reached (free tier) — wait a minute and try again");
     if (!res.ok) throw new Error(`API ${res.status}: ${(await res.text()).slice(0, 160)}`);
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content || "";
@@ -370,18 +455,20 @@ Use 1–6 tokens in ASL order (topic first, question words at the end). If nothi
     catch { parsed = { text: content.trim(), gloss: mockLLM.autoGloss(content) }; }
     const gloss = (Array.isArray(parsed.gloss) ? parsed.gloss : [])
       .map(g => String(g).toLowerCase().trim().replace(/\s+/g, "-"))
-      .flatMap(g => (vocab.byId[g] ? [g] : /^letter:[a-z]$/.test(g) ? [g] : []));
-    return { text: String(parsed.text || "OK."), gloss: gloss.length ? gloss : mockLLM.autoGloss(parsed.text || "ok") };
+      .flatMap(g => (vocab.byId[g] ? [g] : /^letter:[a-z]$/.test(g) ? [g] : []))
+      .slice(0, 16);
+    return { text: String(parsed.text || "OK."), gloss: gloss.length ? gloss : mockLLM.autoGloss(parsed.text || "ok"),
+             understood: parsed.understood ? String(parsed.understood) : null };
   }
 
   let pendingReply = 0;
-  async function respond({ text, tokens, display }) {
+  async function respond({ text, tokens, alts, display }) {
     const id = ++pendingReply;
     $("typing").classList.add("show");
     let resp, note = null;
     try {
-      if (AI.mode === "api") {
-        resp = await callAPI(tokens ? `${display} (signed, gloss: ${vocab.tokensToGloss(tokens)})` : text);
+      if (AI.mode === "api" || AI.mode === "gemini") {
+        resp = await callAPI(tokens ? `Signed: ${glossWithAlts(tokens, alts)}` : text);
       } else {
         resp = mock.respond(tokens ? { tokens, source: "sign" } : { text, source: "text" });
         // feel like a model "thinking": a short delay that grows with reply length
@@ -396,6 +483,7 @@ Use 1–6 tokens in ASL order (topic first, question words at the end). If nothi
     $("typing").classList.remove("show");
     history.push({ role: "user", content: display }, { role: "assistant", content: resp.text });
     if (note) appendMessage("note", note);
+    if (tokens && resp.understood) appendMessage("note", `Understood as: “${resp.understood}”`);
     appendMessage("bot", resp.text, vocab.tokensToGloss(resp.gloss));
     signReply(resp.gloss);
   }

@@ -87,16 +87,25 @@
       <div class="section-label">AI backend</div>
       <div class="seg wide">
         <button id="mode-mock" class="seg-btn">Mock (offline)</button>
-        <button id="mode-api" class="seg-btn">OpenAI-compatible API</button>
+        <button id="mode-gemini" class="seg-btn">Gemini (free tier)</button>
+        <button id="mode-api" class="seg-btn">Other API</button>
       </div>
-      <div id="api-fields" class="api-fields">
+      <div id="gemini-fields" class="api-fields" hidden>
+        <label>Gemini API key <input id="gemini-key" type="password" placeholder="AIza…" autocomplete="off" /></label>
+        <label>Model <select id="gemini-model"><option value="gemini-2.5-flash">gemini-2.5-flash</option></select></label>
+        <label class="toggle"><input type="checkbox" id="gemini-remember" /> Remember key on this device</label>
+        <button id="gemini-save" class="primary small">Use Gemini</button>
+        <p class="fine">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. The free tier has rate limits, and Google may use free-tier conversations to improve its products.</p>
+      </div>
+      <div id="api-fields" class="api-fields" hidden>
         <label>Base URL <input id="api-base" type="text" placeholder="https://api.openai.com/v1" autocomplete="off" /></label>
         <label>Model <input id="api-model" type="text" placeholder="gpt-4o-mini" autocomplete="off" /></label>
         <label>API key <input id="api-key" type="password" placeholder="sk-… (leave empty for local servers like Ollama)" autocomplete="off" /></label>
         <label class="toggle"><input type="checkbox" id="remember-key" /> Remember key on this device</label>
         <button id="api-save" class="primary small">Use this API</button>
+        <p class="fine">Any OpenAI-compatible server: OpenAI, OpenRouter, Groq, Ollama, LM Studio…</p>
       </div>
-      <p class="fine">The key stays in your browser and is only sent to the URL above. For anything public, put a small backend proxy in front of it.</p>
+      <p class="fine">Keys stay in your browser and are only sent to that provider.</p>
     </div>
     <div class="body">
       <div id="chat" aria-live="polite">

@@ -156,11 +156,13 @@ header {
 .settings { padding: 12px 14px; background: rgba(124, 92, 255, 0.06); border-bottom: 1px solid var(--line); }
 .api-fields { display: grid; gap: 7px; }
 .api-fields label:not(.toggle) { display: grid; gap: 3px; font-size: 11px; color: var(--muted); }
-.api-fields input[type=text], .api-fields input[type=password] {
+.api-fields input[type=text], .api-fields input[type=password], .api-fields select {
   width: 100%; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text);
   padding: 7px 9px; border-radius: 8px; font: inherit; font-size: 13px; outline: none;
 }
 .fine { font-size: 11px; color: var(--muted); margin: 10px 0 0; line-height: 1.5; }
+.fine a { color: #A5B4FC; }
+.tok.unsure { outline: 1px dashed rgba(251, 191, 36, 0.7); }
 #chat { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .msg { max-width: 88%; padding: 9px 13px; border-radius: 14px; line-height: 1.45; font-size: 14px; animation: fadeUp .25s ease-out; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
