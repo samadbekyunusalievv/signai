@@ -1,14 +1,14 @@
 """Turn the compacted Kaggle data into model-ready arrays.
 
 Reads  : DATA/islr_frames.npy, DATA/islr_index.csv, DATA/train.csv, DATA/sign_to_prediction_index_map.json
-Writes : DATA/ds_X.npy [N, 64, 94, 2] float16, ds_len.npy, ds_y.npy, ds_pid.npy
+Writes : DATA/ds_X.npy [N, 32, 94, 2] float16, ds_len.npy, ds_y.npy, ds_pid.npy
 """
 import json, os, sys, time
 import numpy as np, pandas as pd
 sys.path.insert(0, os.path.dirname(__file__))
 from prep import preprocess, MAX_LEN, N_POINTS
 
-DATA = sys.argv[1] if len(sys.argv) > 1 else "/tmp/claude-0/data"
+DATA = sys.argv[1] if len(sys.argv) > 1 else "data"
 frames = np.load(f"{DATA}/islr_frames.npy", mmap_mode="r")
 index = pd.read_csv(f"{DATA}/islr_index.csv")
 train = pd.read_csv(f"{DATA}/train.csv")

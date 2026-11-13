@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from prep import MAX_LEN, N_POINTS
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--data", default="/tmp/claude-0/data")
+ap.add_argument("--data", default="data")
 ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "models"))
 ap.add_argument("--epochs", type=int, default=30)
 ap.add_argument("--batch", type=int, default=256)
