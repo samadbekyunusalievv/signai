@@ -10,7 +10,7 @@ A personal side project. Everything runs in the browser, and the camera feed nev
 
 ## Try it
 
-**Live demo: https://samadbekyunusalievv.github.io/signai/** (deployed automatically from `main` by GitHub Actions)
+**Live demo: https://samadbekyunusalievv.github.io/signai/** (GitHub Pages, published from `main`)
 
 **Just open [`signai.html`](signai.html) in a browser.** It's one self-contained file (all CSS and JS inlined), so you can double-click it, copy it anywhere, or send it to someone. No server, no install. Allow the camera when the browser asks.
 
