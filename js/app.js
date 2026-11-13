@@ -349,7 +349,8 @@
     const key = $("gemini-key").value.trim();
     if (!key || key === modelsLoadedFor) return;
     try {
-      const res = await fetch(GEMINI_BASE + "/models", { headers: { Authorization: "Bearer " + key } });
+      let res = await fetch(GEMINI_BASE + "/models", { headers: { Authorization: "Bearer " + key } });
+      if (res.status === 401 || res.status === 403) res = await fetch(GEMINI_BASE + "/models", { headers: { "x-goog-api-key": key } });
       if (!res.ok) throw new Error(res.status);
       const ids = ((await res.json()).data || []).map(m => String(m.id).replace(/^models\//, ""))
         .filter(id => /^gemini-/.test(id) && !/(embedding|image|tts|audio|live|vision|exp|preview)/.test(id));
@@ -442,6 +443,11 @@ To fingerspell a name or key word with no sign, use one token per letter: "lette
     const headers = { "Content-Type": "application/json" };
     if (p.key) headers.Authorization = "Bearer " + p.key;
     let res = await fetch(p.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });
+    if ((res.status === 401 || res.status === 403) && AI.mode === "gemini" && p.key) {
+      // some Google key types are only accepted in Google's own header
+      delete headers.Authorization; headers["x-goog-api-key"] = p.key;
+      res = await fetch(p.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });
+    }
     if (res.status === 400) {   // some servers do not support response_format
       delete body.response_format;
       res = await fetch(p.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });

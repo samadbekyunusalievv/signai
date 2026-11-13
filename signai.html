@@ -333,7 +333,7 @@ button.ghost:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.22)
         <button id="mode-api" class="seg-btn">Other API</button>
       </div>
       <div id="gemini-fields" class="api-fields" hidden>
-        <label>Gemini API key <input id="gemini-key" type="password" placeholder="AIza…" autocomplete="off" /></label>
+        <label>Gemini API key <input id="gemini-key" type="password" placeholder="Paste your Gemini API key" autocomplete="off" /></label>
         <label>Model <select id="gemini-model"><option value="gemini-2.5-flash">gemini-2.5-flash</option></select></label>
         <label class="toggle"><input type="checkbox" id="gemini-remember" /> Remember key on this device</label>
         <button id="gemini-save" class="primary small">Use Gemini</button>
@@ -2294,7 +2294,8 @@ button.ghost:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.22)
     const key = $("gemini-key").value.trim();
     if (!key || key === modelsLoadedFor) return;
     try {
-      const res = await fetch(GEMINI_BASE + "/models", { headers: { Authorization: "Bearer " + key } });
+      let res = await fetch(GEMINI_BASE + "/models", { headers: { Authorization: "Bearer " + key } });
+      if (res.status === 401 || res.status === 403) res = await fetch(GEMINI_BASE + "/models", { headers: { "x-goog-api-key": key } });
       if (!res.ok) throw new Error(res.status);
       const ids = ((await res.json()).data || []).map(m => String(m.id).replace(/^models\//, ""))
         .filter(id => /^gemini-/.test(id) && !/(embedding|image|tts|audio|live|vision|exp|preview)/.test(id));
@@ -2387,6 +2388,11 @@ To fingerspell a name or key word with no sign, use one token per letter: "lette
     const headers = { "Content-Type": "application/json" };
     if (p.key) headers.Authorization = "Bearer " + p.key;
     let res = await fetch(p.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });
+    if ((res.status === 401 || res.status === 403) && AI.mode === "gemini" && p.key) {
+      // some Google key types are only accepted in Google's own header
+      delete headers.Authorization; headers["x-goog-api-key"] = p.key;
+      res = await fetch(p.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });
+    }
     if (res.status === 400) {   // some servers do not support response_format
       delete body.response_format;
       res = await fetch(p.base + "/chat/completions", { method: "POST", headers, body: JSON.stringify(body) });
