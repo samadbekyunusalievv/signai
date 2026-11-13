@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SignAI — sign, chat, and get signed back</title>
+<meta name="description" content="Talk to an AI in sign language: your webcam reads your signs, a chat model replies, and a 3D avatar signs the answer." />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">S</div>
+    <div>SignAI <small>camera → chat → avatar</small></div>
+  </div>
+  <div class="header-actions">
+    <span class="tag">Personal project · prototype</span>
+    <button class="ghost" id="reset-btn" title="Clear conversation">Reset</button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- 1. CAMERA -->
+  <section class="panel" aria-label="Sign recognition">
+    <h2>
+      <span>1 · Sign to the camera</span>
+      <span class="h2-right">
+        <span class="seg" role="tablist" aria-label="Recognition mode">
+          <button id="mode-words" class="seg-btn active" role="tab" aria-selected="true">Words</button>
+          <button id="mode-letters" class="seg-btn" role="tab" aria-selected="false">Letters</button>
+        </span>
+        <span id="fps" class="pill small">— fps</span>
+      </span>
+    </h2>
+    <div class="body">
+      <div id="cam-wrap">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas"></canvas>
+        <div id="cam-empty" class="cam-empty">
+          <div>📷</div>
+          <p id="cam-empty-text">Starting camera…</p>
+          <button id="cam-retry" class="ghost" hidden>Try again</button>
+        </div>
+        <div id="detect-badge" class="detect-badge">
+          <div class="detect-label" id="detect-label">—</div>
+          <div class="hold"><div class="hold-fill" id="hold-fill"></div></div>
+        </div>
+        <div class="cam-overlay">
+          <span id="status-pill" class="pill warn">Starting camera…</span>
+          <span id="hands-pill" class="pill">Hands: 0</span>
+        </div>
+      </div>
+
+      <div class="candidates" id="candidates" aria-live="polite"></div>
+
+      <div class="tray">
+        <div class="tray-head">
+          <span class="section-label">Your message</span>
+          <label class="toggle" title="Send automatically after you pause and lower your hands">
+            <input type="checkbox" id="auto-send" checked /> Auto-send on pause
+          </label>
+        </div>
+        <div class="tray-row">
+          <div id="tray-tokens" class="tray-tokens"><span class="tray-placeholder">Signs you make appear here…</span></div>
+          <button class="ghost icon" id="tray-undo" title="Remove last sign">⌫</button>
+          <button class="ghost icon" id="tray-clear" title="Clear">✕</button>
+          <button class="primary" id="tray-send">Send</button>
+        </div>
+        <div class="auto-bar"><div id="auto-fill"></div></div>
+      </div>
+
+      <div class="library">
+        <div class="section-label">Signs I know — click to add, hover for how to sign</div>
+        <div id="library" class="chips"></div>
+        <div id="hint" class="hint">Tip: hold a sign steady for about half a second. Moving signs (hello wave, yes nod, please circle) are read from the motion.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. CHAT -->
+  <section class="panel" aria-label="Conversation">
+    <h2>
+      <span>2 · Conversation</span>
+      <button id="ai-toggle" class="pill small clickable">⚙️ <span id="ai-mode-label">Mock LLM</span></button>
+    </h2>
+    <div id="ai-settings" class="settings" hidden>
+      <div class="section-label">AI backend</div>
+      <div class="seg wide">
+        <button id="mode-mock" class="seg-btn">Mock (offline)</button>
+        <button id="mode-api" class="seg-btn">OpenAI-compatible API</button>
+      </div>
+      <div id="api-fields" class="api-fields">
+        <label>Base URL <input id="api-base" type="text" placeholder="https://api.openai.com/v1" autocomplete="off" /></label>
+        <label>Model <input id="api-model" type="text" placeholder="gpt-4o-mini" autocomplete="off" /></label>
+        <label>API key <input id="api-key" type="password" placeholder="sk-… (leave empty for local servers like Ollama)" autocomplete="off" /></label>
+        <label class="toggle"><input type="checkbox" id="remember-key" /> Remember key on this device</label>
+        <button id="api-save" class="primary small">Use this API</button>
+      </div>
+      <p class="fine">The key stays in your browser and is only sent to the URL above. For anything public, put a small backend proxy in front of it.</p>
+    </div>
+    <div class="body">
+      <div id="chat" aria-live="polite">
+        <div class="msg bot">
+          <div class="label">SignAI</div>
+          <div>Hi! 👋 Sign to the camera, click signs below it, or type. I'll reply and the avatar will sign it back. Try signing <b>HELLO</b>, or type “how do I sign water”.</div>
+        </div>
+      </div>
+      <div id="typing" class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="suggestions" id="suggestions"></div>
+      <div class="composer">
+        <input id="text-input" type="text" placeholder='Type a message… e.g. "hi, my name is Sam"' />
+        <button id="send-btn" class="primary">Send</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. AVATAR -->
+  <section class="panel avatar" aria-label="Signing avatar">
+    <h2>
+      <span>3 · Avatar signs back</span>
+      <span class="h2-right">
+        <span class="seg" aria-label="Signing speed">
+          <button class="seg-btn speed" data-speed="0.6">0.6×</button>
+          <button class="seg-btn speed active" data-speed="1">1×</button>
+          <button class="seg-btn speed" data-speed="1.4">1.4×</button>
+        </span>
+        <button class="ghost small" id="replay-btn" title="Sign the last reply again" aria-label="Replay">↻</button>
+      </span>
+    </h2>
+    <div class="body">
+      <div id="avatar-wrap">
+        <canvas id="avatar-canvas"></canvas>
+        <div id="avatar-error" class="cam-empty" hidden><p>3D avatar could not load (Three.js unavailable).</p></div>
+        <div class="avatar-info">
+          <div class="now-signing">Now signing: <strong id="now-signing">idle</strong></div>
+        </div>
+      </div>
+      <div class="gloss-strip" id="gloss-strip"></div>
+    </div>
+  </section>
+</main>
+
+<!-- Libraries (MediaPipe Hands + Three.js) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<!-- App -->
+<script src="js/vocab.js"></script>
+<script src="js/recognizer.js"></script>
+<script src="js/mock-llm.js"></script>
+<script src="js/avatar.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,176 +1,140 @@
 # SignAI
 
-**Bidirectional sign-language communication agent — camera → chat → avatar, powered by Qwen Cloud on Alibaba Cloud.**
+**Talk to an AI in sign language.** Your webcam reads your signs, a chat model replies, and a 3D avatar signs the answer back. No typing needed on either side.
 
-Built for the **Global AI Hackathon Series with Qwen Cloud** — **Track 4: Autopilot Agent**
+A personal side project. Everything runs in the browser, and the camera feed never leaves your device.
+
+![SignAI thumbnail](signai-thumbnail-3x2.png)
 
 ---
 
-## What is SignAI?
+## Try it
 
-SignAI lets a Deaf or hard-of-hearing user have a real conversation with an AI agent entirely through sign language. No typing, on either side.
+It's a static site with no build step:
 
-1. A webcam reads the user's hand signs (processed entirely on-device).
-2. The agent confirms what it understood — a human-in-the-loop checkpoint — before acting on it.
-3. The agent reasons over the conversation using Qwen models, optionally calling external tools.
-4. A 3D avatar signs the reply back to the user.
+```bash
+git clone https://github.com/samadbekyunusalievv/signai.git
+cd signai
+python3 -m http.server 8000      # any static server works
+# open http://localhost:8000
+```
 
-## Why This Matters
+Webcams need a secure context, so use `localhost` or HTTPS rather than opening the file directly. No camera? Click the signs under the video, or type in the chat box.
 
-Modern AI assistants assume the user can type and read fluent text. That assumption excludes a huge population:
-
-- An estimated **70 million people** worldwide are part of the signing Deaf community.
-- Roughly **80% of Deaf adults** are not fully fluent in written language — for them, a chat box is effectively a foreign-language interface.
-- Every major AI assistant today requires exactly the skill this population is least likely to have: fluent typed/read text.
-
-SignAI removes that barrier at both ends of the conversation.
-
-## How It Works
+## How it works
 
 ```mermaid
 flowchart LR
-    subgraph Client["Browser (Client)"]
-        direction TB
-        Cam["Camera (WebRTC)"]
-        MP["MediaPipe Hands<br/>landmark detection"]
-        CLS["Heuristic Classifier<br/>sign + confidence score"]
-        CONF["Confirmation UI<br/>(Human-in-the-Loop)"]
-        CHAT["Chat UI"]
-        AVA["3D Avatar (Three.js)<br/>signs the reply"]
-        Cam --> MP --> CLS --> CONF
-        CONF --> CHAT
-        AVA --> CHAT
+    subgraph Browser
+        CAM["Webcam"] --> MP["MediaPipe Hands<br/>21 landmarks / hand"]
+        MP --> REC["Recognizer<br/>joint angles + motion → scored signs"]
+        REC --> TRAY["Message tray<br/>words + fingerspelling"]
+        TRAY --> LLM{"LLM"}
+        LLM -->|offline| MOCK["Mock LLM<br/>intents, memory, tools"]
+        LLM -->|optional| API["Any OpenAI-compatible API"]
+        MOCK --> OUT["Reply text + gloss"]
+        API --> OUT
+        OUT --> CHAT["Chat"]
+        OUT --> AV["Three.js avatar<br/>IK + handshapes"]
     end
-
-    subgraph Alibaba["Alibaba Cloud — Function Compute"]
-        direction TB
-        API["API Endpoint"]
-        ORCH["Agent Orchestrator"]
-        TOOL["Tool Layer<br/>(external lookups)"]
-        API --> ORCH
-        ORCH -- "tool request" --> TOOL
-        TOOL -- "tool result" --> ORCH
-    end
-
-    subgraph Qwen["Qwen Cloud — Model Studio"]
-        direction TB
-        VL["qwen-vl-plus<br/>(multimodal vision)"]
-        CHATM["qwen-plus<br/>(conversation + ASL gloss)"]
-    end
-
-    CONF -- "confirmed sign + history" --> API
-    CLS -- "low-confidence frame" --> API
-    ORCH -- "ambiguous frame" --> VL
-    VL -- "suggested sign" --> ORCH
-    ORCH -- "sign + context" --> CHATM
-    CHATM -- "reply text + gloss sequence" --> ORCH
-    ORCH -- "JSON response" --> AVA
 ```
 
-### Walkthrough
+1. **Hand tracking.** MediaPipe Hands finds 21 3D landmarks per hand, for up to two hands, on-device.
+2. **Recognition** (`js/recognizer.js`):
+   - Finger states come from 3D joint angles in world landmarks, so they hold up when your hand is tilted, rotated, or far from the camera.
+   - Each sign gets a fuzzy score from 0 to 1. The best match wins, and you see its confidence plus the runner-ups.
+   - Landmarks are smoothed between frames, and a short voting window plus a hold timer stop single noisy frames from firing.
+   - The last second of hand movement is tracked. That catches waves, nods, circles, downward strokes and open/close flapping, so moving signs like HELLO, YES, PLEASE, THANK-YOU and BYE work, as do two-handed signs like HELP, WHAT, MORE and NAME.
+3. **Message tray.** Recognized signs build up into a message, which sends automatically when you pause and lower your hands. You can also press Send, ⌫ or ✕.
+4. **Reply.** The offline mock LLM runs by default; you can switch to any OpenAI-compatible API. Either way the reply comes back as English text plus a gloss: a list of sign tokens and fingerspelled letters.
+5. **Avatar** (`js/avatar.js`):
+   - Two-bone IK puts the hands at real body locations (chin, chest, forehead, ear).
+   - Hand orientation and handshapes are set per keyframe, with two-joint fingers and a thumb.
+   - Words without a sign are fingerspelled.
 
-1. **Camera & hand tracking (client-side).** MediaPipe Hands runs entirely in the browser — the raw video feed never leaves the user's device.
-2. **Sign classification.** A heuristic classifier maps hand landmarks to a candidate sign and a confidence score.
-3. **Human-in-the-loop confirmation.** If confidence is high, the user sees "Did you mean: HELLO? ✅ / ✏️" before anything is sent anywhere. If confidence is low, a single frame is sent to the backend for a second opinion.
-4. **Agent orchestration (Alibaba Cloud Function Compute).** A lightweight serverless endpoint receives the confirmed sign + conversation history.
-5. **Qwen Cloud models.**
-   - `qwen-vl-plus` resolves ambiguous frames (multimodal vision) when the client-side classifier wasn't confident.
-   - `qwen-plus` generates the conversational reply **and** an ASL gloss sequence, and can request a tool call mid-reasoning.
-6. **Tool layer.** When the agent's reasoning calls for outside information (e.g., a lookup), the orchestrator executes the tool and returns the result to the model for a final answer.
-7. **Avatar output.** The returned gloss sequence drives the existing Three.js avatar's pose library, which signs the reply back to the user.
+## Vocabulary
 
-## Track 4 (Autopilot Agent) Alignment
+**30 words** (Words mode):
 
-| Judging focus | How SignAI addresses it |
+| Group | Signs |
 |---|---|
-| **Ambiguous inputs** | Low-confidence sign classifications are routed to `qwen-vl-plus` for a multimodal second opinion before any action is taken. |
-| **Human-in-the-loop checkpoints** | Every recognized sign is confirmed by the user ("Did you mean...?") before it enters the agent's context — the agent never acts on an unconfirmed interpretation. |
-| **External tool invocation** | The agent can call an external tool mid-conversation when the user's request requires information outside its own knowledge. |
-| **Production-readiness** | Clear client/backend separation, graceful fallback if the Qwen API is unreachable, and a privacy-first design (raw video never leaves the device). |
+| Social | hello · goodbye · thank you · please · sorry · I love you · nice to meet you |
+| Answers | yes · no · OK · good · bad |
+| People | you · me |
+| Questions | what · where · name · think |
+| Needs | help · water · eat · drink · hungry · more · stop/wait · call |
+| Numbers & fun | one · two · three · four · rock on |
 
-## Tech Stack
+**Fingerspelling** (Letters mode): the camera reads A B C D E F H I L O S U V W Y. Other letters can be clicked. The avatar can fingerspell all 26 letters, though some are approximate.
 
-| Layer | Technology |
-|---|---|
-| Frontend | Vanilla HTML/JS (single-page), MediaPipe Hands, Three.js |
-| Hand tracking | `@mediapipe/hands` (client-side) |
-| Sign classification | JS heuristics over hand landmarks |
-| Backend | Node.js (Express), deployed as an Alibaba Cloud Function Compute HTTP function |
-| AI models | Qwen (`qwen-plus`, `qwen-vl-plus`) via Alibaba Cloud Model Studio (DashScope API) |
-| Avatar | Three.js, custom rigged humanoid + keyframed ASL pose library |
-| Hosting | Alibaba Cloud Function Compute (backend) + static hosting for frontend |
+Hover over any sign in the app to see how to make it for the camera.
 
-## Project Structure
+## The mock LLM
+
+`js/mock-llm.js` is an offline dialogue engine, so the app is fully usable without an API key:
+
+- **Understands signed gloss and typed English.** It handles slang and contractions ("u", "im", "thx"), and splits a message into several intents ("hi, my name is Sam" → greet + remember name).
+- **Remembers context:**
+  - your name, including one you fingerspelled: ME NAME S-A-M
+  - your mood
+  - what it just asked you, so a bare YES or NO after "Would you like water?" is understood
+- **Built-in tools:**
+  - time and date
+  - arithmetic ("what is 12 times 3", "2+2")
+  - counting
+  - jokes
+  - sign lessons: "how do I sign water" makes the avatar sign it, and unknown words are fingerspelled
+- **Handles needs:** help, water, food, a call to someone (simulated), with follow-up questions.
+- **Varies its wording** so it doesn't repeat itself, and says plainly when something needs the internet (weather, news).
+
+### Using a real model
+
+Click **⚙️ Mock LLM** → **OpenAI-compatible API**, then enter a base URL, model and (optionally) a key. This works with OpenAI, OpenRouter, a local [Ollama](https://ollama.com) (`http://localhost:11434/v1`), LM Studio, and others. The model is asked for strict JSON, `{"text": "...", "gloss": [...]}`, limited to tokens the avatar can sign. If the API fails, the app falls back to the mock.
+
+The key is kept in your browser and only sent to the URL you entered. Don't publish a page with a key in it.
+
+## Project structure
 
 ```
 signai/
-├── README.md
-├── LICENSE                  (MIT)
-├── docs/
-│   ├── architecture.html    — full technical architecture (this repo's design doc)
-│   ├── pitch-deck.html       — project pitch
-│   └── research.html         — market research & statistics
-├── frontend/
-│   └── index.html            — camera, classifier, chat UI, avatar
-└── backend/
-    ├── index.js               — Function Compute handler (Qwen + tool orchestration)
-    ├── package.json
-    └── .env.example
+├── index.html              app shell
+├── css/style.css
+├── js/
+│   ├── vocab.js            words, letters, hints, gloss helpers
+│   ├── recognizer.js       landmarks → features → scored signs → stable output
+│   ├── mock-llm.js         offline dialogue engine
+│   ├── avatar.js           Three.js avatar: IK, handshapes, sign clips
+│   └── app.js              wiring: camera, tray, chat, settings
+├── tests/
+│   ├── synthetic-hand.js   kinematic hand model that generates fake landmarks
+│   ├── recognizer.test.js  every sign × (normal, tilted, far + noisy)
+│   └── mock-llm.test.js    scripted conversations
+└── docs/                   older write-ups: architecture, pitch deck, research
 ```
 
-## Getting Started
-
-### Prerequisites
-
-- A Qwen Cloud account with hackathon credits (Model Studio / DashScope API key)
-- An Alibaba Cloud account (Function Compute enabled)
-- Node.js 18+
-
-### Local Development
+## Tests
 
 ```bash
-cd backend
-npm install
-cp .env.example .env   # add your DASHSCOPE_API_KEY
-npm run dev
+npm test     # or: node tests/recognizer.test.js && node tests/mock-llm.test.js
 ```
 
-Open `frontend/index.html` in a browser and point it at your local backend URL.
+The recognizer tests don't need a camera. A small kinematic hand model in `tests/synthetic-hand.js` generates landmarks for each handshape and movement. Each static sign is also checked tilted, smaller and noisier.
 
-### Deploying to Alibaba Cloud
+## Limitations
 
-```bash
-# Function Compute deployment via Serverless Devs (s CLI)
-s deploy
-```
+- The recognizer is hand-tuned rules over landmarks, not a trained model. It reads isolated signs, not continuous signing, and ignores facial grammar.
+- Some signs are simplified versions of real ASL so a single camera can tell them apart. The hints in the app describe what the recognizer expects.
+- The avatar is a simple primitive rig, so its signs are readable approximations rather than fluent ASL.
+- This is a personal learning project, not an accessibility product. Real sign-language tools should be built with Deaf signers.
 
-The deployed function URL becomes the backend endpoint the frontend calls.
+## Ideas / roadmap
 
-## Alibaba Cloud Deployment Proof
-
-> Link to the code file demonstrating Alibaba Cloud SDK/API usage: `backend/index.js`
-> Proof recording: *(link added at submission time)*
-
-## Demo Video
-
-*(link added at submission time)*
-
-## Roadmap
-
-| Phase | Scope |
-|---|---|
-| **V0 — Hackathon** | Browser prototype + Alibaba-Cloud-hosted Qwen agent, ~14 signs, confirmation step, one tool |
-| **V1 — Closed alpha (+1 month)** | TensorFlow.js classifier (50+ signs), rigged glTF avatar, pilot with Deaf testers |
-| **V2 — Public beta (+3 months)** | Continuous-signing model, 200+ signs with ASL grammar, mobile PWA |
-| **V3 — Production (+6–12 months)** | Additional sign languages (BSL, RSL), non-manual markers (facial grammar), accessibility-compliance SDK |
-
-## Privacy & Ethics
-
-- **On-device first.** Hand tracking runs in the browser; the raw camera feed never leaves the user's machine.
-- **Server only sees structured data.** The backend receives recognized signs/text and conversation history — never video or images, except a single confirmed frame in low-confidence cases.
-- **Deaf-led product decisions.** Sign vocabulary, avatar design, and grammar rules are intended to be reviewed by Deaf signers, not decided unilaterally by hearing engineers.
-- **No facial recognition.** No identifiable face data is stored — only transient hand landmark vectors.
+- [ ] Train a small classifier (TensorFlow.js) on recorded landmarks to replace or augment the rules
+- [ ] Calibration step: record your own version of each sign
+- [ ] More letters (motion letters J and Z) and numbers 5–10
+- [ ] Glossy rigged glTF avatar with facial expressions
+- [ ] PWA / mobile layout polish
 
 ## License
 
-MIT — see `LICENSE`.
+MIT, see `LICENSE`.

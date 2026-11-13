@@ -116,7 +116,7 @@
 <body>
 <main class="page">
   <h1>SignAI Technical Architecture</h1>
-  <p class="sub">Camera → ASL recognition → LLM → 3D signing avatar. End-to-end design for the hackathon prototype and the path to production.</p>
+  <p class="sub">Camera → ASL recognition → LLM → 3D signing avatar. End-to-end design for the prototype and a possible path beyond it.</p>
 
   <h2><span class="num">1</span>System at a Glance</h2>
   <div class="pipeline">
@@ -224,7 +224,7 @@
   </table>
 
   <h3>2.3 Why heuristics first</h3>
-  <p>For the hackathon prototype, hand-rolled rules ("thumb out + index extended + pinky extended ⇒ I-LOVE-YOU") demo cleanly without training a model live. They give us an honest, runnable loop today; the same architecture swaps cleanly to ML weights later.</p>
+  <p>For the prototype, hand-rolled rules ("thumb out + index extended + pinky extended ⇒ I-LOVE-YOU") demo cleanly without training a model live. They give us an honest, runnable loop today; the same architecture swaps cleanly to ML weights later.</p>
 
   <h3>2.4 Temporal stability</h3>
   <p>Static-frame classification is jittery. We hold a recognized sign for <code>600 ms</code> before emitting it, and apply a <code>1500 ms</code> cooldown to prevent the same sign repeating from a single gesture. In V1, swap this for a sliding-window classifier with hysteresis.</p>
@@ -305,7 +305,7 @@ ASSISTANT:
   <h2><span class="num">8</span>Roadmap</h2>
   <div class="roadmap">
     <div class="phase">
-      <div class="when">Hackathon (now)</div>
+      <div class="when">Prototype (now)</div>
       <h4>V0 — Demo</h4>
       <ul>
         <li>Browser-only prototype</li>
@@ -355,7 +355,7 @@ ASSISTANT:
   </ul>
 
   <h2><span class="num">10</span>What's Built Today</h2>
-  <p>The accompanying file <code>sign-ai-prototype.html</code> implements the full V0 loop end-to-end:</p>
+  <p>The app (<code>index.html</code> + <code>js/</code>) implements the full V0 loop end-to-end:</p>
   <ul>
     <li>Live webcam → MediaPipe Hands landmarks (21 × 2 points/frame)</li>
     <li>Heuristic sign classifier for: <span class="pill">hello</span> <span class="pill">yes</span> <span class="pill">no</span> <span class="pill">thank-you</span> <span class="pill">help</span> <span class="pill">please</span> <span class="pill">i-love-you</span> <span class="pill">stop</span></li>
