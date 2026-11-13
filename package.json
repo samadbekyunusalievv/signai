@@ -4,6 +4,7 @@
   "description": "Talk to an AI in sign language: webcam sign recognition, a chat model, and a 3D signing avatar.",
   "private": true,
   "scripts": {
+    "build": "node tools/build-single.js",
     "start": "python3 -m http.server 8000",
     "test": "node tests/recognizer.test.js && node tests/mock-llm.test.js"
   },

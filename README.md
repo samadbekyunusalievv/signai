@@ -10,16 +10,20 @@ A personal side project. Everything runs in the browser, and the camera feed nev
 
 ## Try it
 
-It's a static site with no build step:
+**Just open [`signai.html`](signai.html) in a browser.** It's one self-contained file (all CSS and JS inlined), so you can double-click it, copy it anywhere, or send it to someone. No server, no install. Allow the camera when the browser asks.
+
+It needs an internet connection the first time, to load MediaPipe Hands and Three.js from a CDN.
+
+No camera? Click the signs under the video, or type in the chat box.
+
+### Developing
+
+The readable source is `index.html` + `css/` + `js/`. `index.html` also opens directly, as long as its folders sit next to it. After editing, regenerate the single file:
 
 ```bash
-git clone https://github.com/samadbekyunusalievv/signai.git
-cd signai
-python3 -m http.server 8000      # any static server works
-# open http://localhost:8000
+npm run build    # rebuilds signai.html
+npm test
 ```
-
-Webcams need a secure context, so use `localhost` or HTTPS rather than opening the file directly. No camera? Click the signs under the video, or type in the chat box.
 
 ## How it works
 
@@ -97,7 +101,8 @@ The key is kept in your browser and only sent to the URL you entered. Don't publ
 
 ```
 signai/
-├── index.html              app shell
+├── signai.html             ← the whole app in one file (generated, open this)
+├── index.html              app shell (source)
 ├── css/style.css
 ├── js/
 │   ├── vocab.js            words, letters, hints, gloss helpers
@@ -109,6 +114,7 @@ signai/
 │   ├── synthetic-hand.js   kinematic hand model that generates fake landmarks
 │   ├── recognizer.test.js  every sign × (normal, tilted, far + noisy)
 │   └── mock-llm.test.js    scripted conversations
+├── tools/build-single.js   inlines everything into signai.html
 └── docs/                   older write-ups: architecture, pitch deck, research
 ```
 
