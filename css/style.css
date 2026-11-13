@@ -121,6 +121,13 @@ header {
 .cand .bar { height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); margin-top: 3px; overflow: hidden; }
 .cand .bar i { display: block; height: 100%; background: var(--primary-2); }
 .cand:first-child { color: var(--text); }
+button.cand.pick { background: var(--chip); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 4px 7px;
+                   color: var(--muted); cursor: pointer; text-align: left; font: inherit; font-size: 11px; }
+button.cand.pick:first-child { color: var(--text); border-color: rgba(52, 211, 153, 0.45); }
+button.cand.pick:hover { border-color: rgba(124, 92, 255, 0.6); color: var(--text); }
+.seg-btn:disabled { opacity: 0.45; cursor: wait; }
+.lib-filter { width: 100%; margin-top: 7px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.08);
+              color: var(--text); padding: 6px 9px; border-radius: 8px; font: inherit; font-size: 12px; outline: none; }
 
 /* sentence tray */
 .tray { padding: 8px 14px 10px; border-top: 1px solid var(--line); }

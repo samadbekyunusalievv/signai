@@ -4,11 +4,15 @@
    =========================================================== */
 (function () {
   "use strict";
-  const { vocab, recognizer: R, mockLLM } = window.SignAI;
+  const { vocab, recognizer: R, mockLLM, signModel: SM } = window.SignAI;
   const $ = id => document.getElementById(id);
 
   // ---------------- state ----------------
   const rec = new R.Recognizer({ mode: "words" });
+  let mode = "words";          // "ai" (trained 250-sign model) | "words" (30 rule-based signs) | "letters"
+  const model = SM ? new SM.SignModel() : null;
+  const segmenter = SM ? new SM.Segmenter() : null;
+  let lastAiIndex = -1;        // tray position of the last sign added by the AI model (for corrections)
   const mock = new mockLLM.MockLLM();
   let tray = [];               // tokens waiting to be sent
   let trayAlts = [];           // per token: other likely signs the recognizer considered
@@ -23,6 +27,24 @@
     const lib = $("library");
     lib.innerHTML = "";
     Object.keys(chipEls).forEach(k => delete chipEls[k]);
+    if (mode === "ai") {
+      $("lib-title").textContent = `${model.labels.length} signs the AI model knows — click to add`;
+      const filter = document.createElement("input");
+      filter.className = "lib-filter"; filter.placeholder = "Search signs…"; filter.type = "search";
+      lib.appendChild(filter);
+      const box = document.createElement("div"); box.className = "chips"; lib.appendChild(box);
+      const items = model.labels.map(l => ({ token: SM.tokenFor(l), text: SM.textFor(l) })).sort((a, b) => a.text.localeCompare(b.text));
+      const draw = () => {
+        const q = filter.value.trim().toLowerCase();
+        box.innerHTML = "";
+        items.filter(i => !q || i.text.includes(q)).forEach(i =>
+          box.appendChild(makeChip(i.token, i.text, "Sign it as in ASL (from Google's isolated-sign dataset), then lower your hands.", false)));
+      };
+      filter.addEventListener("input", draw);
+      draw();
+      return;
+    }
+    $("lib-title").textContent = "Signs I know — click to add, hover for how to sign";
     if (rec.mode === "letters") {
       vocab.LETTERS.forEach(l => lib.appendChild(makeChip("letter:" + l.id, l.id, l.hint, true)));
       const all = document.createElement("div");
@@ -54,7 +76,7 @@
     return el;
   }
   function showHint(token, hint) {
-    const name = vocab.isLetterToken(token) ? "Letter " + vocab.letterOf(token).toUpperCase() : (vocab.byId[token] || {}).text;
+    const name = vocab.isLetterToken(token) ? "Letter " + vocab.letterOf(token).toUpperCase() : (vocab.byId[token] || {}).text || prettyOf(token);
     $("hint").innerHTML = `<b>${escapeHtml(name || token)}</b> — ${escapeHtml(hint)}`;
   }
   function flashChip(token) {
@@ -63,24 +85,35 @@
     el.classList.add("active");
     setTimeout(() => el.classList.remove("active"), 1200);
   }
+  function prettyOf(token) { return SM ? SM.textFor(token) : token; }
   function labelOf(token) {
     if (!token) return "";
     if (vocab.isLetterToken(token)) return vocab.letterOf(token).toUpperCase();
-    return (vocab.byId[token] ? vocab.byId[token].text : token).toUpperCase();
+    return (vocab.byId[token] ? vocab.byId[token].text : prettyOf(token)).toUpperCase();
   }
 
   // ---------------- mode switch ----------------
-  function setMode(mode) {
-    rec.setMode(mode);
-    $("mode-words").classList.toggle("active", mode === "words");
-    $("mode-letters").classList.toggle("active", mode === "letters");
-    $("mode-words").setAttribute("aria-selected", mode === "words");
-    $("mode-letters").setAttribute("aria-selected", mode === "letters");
+  const HINTS = {
+    ai: "Sign one word, then lower your hands (or hold still) — the AI model reads the whole movement. Tap a guess below if it picked the wrong word.",
+    words: "Tip: hold a sign steady for about half a second. Moving signs (hello wave, yes nod, please circle) are read from the motion.",
+    letters: "Fingerspelling: hold each letter still for half a second. Lower your hand between words. Repeat a letter by moving off it briefly.",
+  };
+  function setMode(m) {
+    if (m === "ai" && !(model && model.ready)) return;
+    mode = m;
+    if (m !== "ai") rec.setMode(m);
+    if (segmenter) segmenter.reset();
+    ["ai", "words", "letters"].forEach(k => {
+      $("mode-" + k).classList.toggle("active", k === m);
+      $("mode-" + k).setAttribute("aria-selected", k === m);
+    });
     renderLibrary();
-    $("hint").textContent = mode === "letters"
-      ? "Fingerspelling: hold each letter still for half a second. Lower your hand between words. Repeat a letter by moving off it briefly."
-      : "Tip: hold a sign steady for about half a second. Moving signs (hello wave, yes nod, please circle) are read from the motion.";
+    $("hint").textContent = HINTS[m];
+    lastCandKey = null;
+    $("candidates").innerHTML = `<span class="cand">${m === "ai" ? "Sign a word, then lower your hands" : "Show your hand to the camera"}</span>`;
+    if (running) ensureTracker();
   }
+  $("mode-ai").addEventListener("click", () => setMode("ai"));
   $("mode-words").addEventListener("click", () => setMode("words"));
   $("mode-letters").addEventListener("click", () => setMode("letters"));
 
@@ -104,11 +137,11 @@
       const alts = trayAlts[i] || [];
       s.className = "tok" + (vocab.isLetterToken(t) ? " letter" : "") + (alts.length ? " unsure" : "");
       if (alts.length) s.title = "Could also be: " + alts.map(labelOf).join(", ");
-      s.textContent = vocab.isLetterToken(t) ? vocab.letterOf(t).toUpperCase() : (vocab.byId[t] ? vocab.byId[t].text.toLowerCase() : t);
+      s.textContent = vocab.isLetterToken(t) ? vocab.letterOf(t).toUpperCase() : (vocab.byId[t] ? vocab.byId[t].text.toLowerCase() : prettyOf(t));
       el.appendChild(s);
     });
   }
-  $("tray-undo").addEventListener("click", () => { tray.pop(); trayAlts.pop(); renderTray(); });
+  $("tray-undo").addEventListener("click", () => { tray.pop(); trayAlts.pop(); lastAiIndex = -1; renderTray(); });
   $("tray-clear").addEventListener("click", () => { tray = []; trayAlts = []; renderTray(); });
   $("tray-send").addEventListener("click", sendTray);
 
@@ -153,30 +186,51 @@
     $("cam-retry").hidden = !retry;
   }
 
+  const HANDS_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/";
+  const HOLISTIC_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/holistic@0.5.1675471629/";
+  let holistic = null;
   function initHands() {
+    if (hands) return true;
     if (typeof window.Hands !== "function") return false;
-    hands = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}` });
+    hands = new window.Hands({ locateFile: f => HANDS_CDN + f });
     hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.55 });
     hands.onResults(onResults);
     return true;
   }
+  // the trained model needs hands + body + lips, exactly like its training data (MediaPipe Holistic)
+  function initHolistic() {
+    if (holistic) return true;
+    if (typeof window.Holistic !== "function") return false;
+    holistic = new window.Holistic({ locateFile: f => HOLISTIC_CDN + f });
+    holistic.setOptions({ modelComplexity: 1, smoothLandmarks: true, refineFaceLandmarks: false,
+                          minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+    holistic.onResults(onHolisticResults);
+    return true;
+  }
+  function ensureTracker() {
+    const ok = mode === "ai" ? initHolistic() : initHands();
+    if (!ok) {
+      camMessage("Body/hand tracking (MediaPipe) could not load — check your connection. You can still click signs below.", true);
+      setStatus("Tracker unavailable", "danger");
+    } else if (!statusPill.classList.contains("live")) {
+      setStatus(mode === "ai" ? "Loading body tracker…" : "Loading hand model…", "warn");
+    }
+    return ok;
+  }
+  const activeTracker = () => (mode === "ai" ? holistic : hands);
 
   async function startCamera() {
     camMessage("Starting camera…");
     setStatus("Starting camera…", "warn");
-    if (!hands && !initHands()) {
-      camMessage("Hand tracking (MediaPipe) could not load — check your connection. You can still click signs below.", true);
-      setStatus("Tracker unavailable", "danger");
-      return;
-    }
+    if (!ensureTracker()) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" }, audio: false });
       videoEl.srcObject = stream;
       await new Promise(res => (videoEl.onloadedmetadata = res));
       await videoEl.play();
       camMessage(null);
-      setStatus("Loading hand model…", "warn");
       running = true;
+      ensureTracker();
       pump();
     } catch (err) {
       console.error(err);
@@ -189,28 +243,37 @@
   let busy = false;
   async function pump() {
     if (!running) return;
-    if (!busy && videoEl.readyState >= 2) {
+    const tracker = activeTracker();
+    if (!busy && tracker && videoEl.readyState >= 2) {
       busy = true;
-      try { await hands.send({ image: videoEl }); }
+      try { await tracker.send({ image: videoEl }); }
       catch (e) { console.error(e); }
       busy = false;
     }
     requestAnimationFrame(pump);
   }
 
-  function onResults(results) {
+  function prepCanvas() {
     if (!statusPill.classList.contains("live")) setStatus("Camera live", "live");
     const w = videoEl.videoWidth, h = videoEl.videoHeight;
     if (w && (canvasEl.width !== w || canvasEl.height !== h)) { canvasEl.width = w; canvasEl.height = h; }
     ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-    const list = results.multiHandLandmarks || [];
-    list.forEach(lm => {
-      if (window.drawConnectors) {
-        window.drawConnectors(ctx, lm, window.HAND_CONNECTIONS, { color: "rgba(124,92,255,0.85)", lineWidth: 3 });
-        window.drawLandmarks(ctx, lm, { color: "#06B6D4", lineWidth: 1, radius: 3 });
-      }
-    });
+  }
+  function drawHand(lm) {
+    if (!lm || !window.drawConnectors) return;
+    window.drawConnectors(ctx, lm, window.HAND_CONNECTIONS, { color: "rgba(124,92,255,0.85)", lineWidth: 3 });
+    window.drawLandmarks(ctx, lm, { color: "#06B6D4", lineWidth: 1, radius: 3 });
+  }
+  function tickFps(now) {
+    const dt = now - lastFrame; lastFrame = now;
+    fps = fps * 0.9 + (1000 / Math.max(dt, 1)) * 0.1;
+    $("fps").textContent = `${fps.toFixed(0)} fps`;
+  }
 
+  function onResults(results) {
+    if (mode === "ai") return;
+    prepCanvas();
+    (results.multiHandLandmarks || []).forEach(drawHand);
     const now = performance.now();
     const report = rec.process(results, now);
     handsVisible = report.hands;
@@ -223,10 +286,81 @@
       addToken(report.emitted, alts);
       firedUntil = now + 450;
     }
+    tickFps(now);
+  }
 
-    const dt = now - lastFrame; lastFrame = now;
-    fps = fps * 0.9 + (1000 / Math.max(dt, 1)) * 0.1;
-    $("fps").textContent = `${fps.toFixed(0)} fps`;
+  // ---- trained model path ----
+  let classifying = false;
+  function onHolisticResults(res) {
+    if (mode !== "ai") return;
+    prepCanvas();
+    drawHand(res.leftHandLandmarks); drawHand(res.rightHandLandmarks);
+    const now = performance.now();
+    const frame = SM.frameFromHolistic(res);
+    handsVisible = (res.leftHandLandmarks ? 1 : 0) + (res.rightHandLandmarks ? 1 : 0);
+    $("hands-pill").textContent = `Hands: ${handsVisible}${res.poseLandmarks ? "" : " · step back so your shoulders show"}`;
+    const clip = segmenter.push(frame, now);
+    const badge = $("detect-badge");
+    if (segmenter.recording) {
+      badge.classList.add("show"); badge.classList.remove("fired");
+      $("detect-label").textContent = "● Reading sign…";
+      $("hold-fill").style.width = (segmenter.progress(now) * 100) + "%";
+      lastTokenAt = now;                       // don't auto-send mid-sign
+    } else if (now > firedUntil) {
+      badge.classList.remove("show", "fired");
+    }
+    if (clip && !classifying) classifyClip(clip, now);
+    tickFps(now);
+  }
+
+  async function classifyClip(clip) {
+    classifying = true;
+    try {
+      const cands = await model.classify(clip.frames, 4);
+      renderAiCandidates(cands);
+      const best = cands[0];
+      const badge = $("detect-badge");
+      badge.classList.add("show");
+      if (best.prob >= 0.15) {
+        addToken(best.token, cands.slice(1, 3).filter(c => c.prob >= 0.05).map(c => c.token));
+        lastAiIndex = tray.length - 1;
+        badge.classList.add("fired");
+        $("detect-label").textContent = `${best.text.toUpperCase()}  ${Math.round(best.prob * 100)}%`;
+      } else {
+        lastAiIndex = -1;
+        badge.classList.remove("fired");
+        $("detect-label").textContent = "Not sure — tap the right word below";
+      }
+      $("hold-fill").style.width = "100%";
+      firedUntil = performance.now() + 1400;
+    } catch (e) {
+      console.error(e);
+    }
+    classifying = false;
+  }
+
+  function renderAiCandidates(cands) {
+    const el = $("candidates");
+    el.innerHTML = "";
+    cands.forEach((c, i) => {
+      const b = document.createElement("button");
+      b.className = "cand pick";
+      b.title = i === 0 ? "The model's best guess" : "Tap to use this word instead";
+      b.innerHTML = `<div class="nm"><span>${escapeHtml(c.text.toUpperCase())}</span><span>${Math.round(c.prob * 100)}%</span></div>
+        <div class="bar"><i style="width:${Math.round(c.prob * 100)}%"></i></div>`;
+      b.addEventListener("click", () => {
+        if (lastAiIndex >= 0 && lastAiIndex === tray.length - 1) {
+          tray[lastAiIndex] = c.token;
+          trayAlts[lastAiIndex] = [];
+          renderTray();
+          lastTokenAt = performance.now();
+        } else {
+          addToken(c.token);
+          lastAiIndex = tray.length - 1;
+        }
+      });
+      el.appendChild(b);
+    });
   }
 
   function updateBadge(report, now) {
@@ -547,10 +681,25 @@ To fingerspell a name or key word with no sign, use one token per letter: "lette
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
   // test hooks (used by the automated browser checks; harmless in normal use)
-  window.SignAI.app = { addToken, sendTray, respond, setMode, get tray() { return tray.slice(); }, get avatar() { return avatar; } };
+  window.SignAI.app = { addToken, sendTray, respond, setMode, classifyClip, get mode() { return mode; }, get model() { return model; },
+                        get tray() { return tray.slice(); }, get avatar() { return avatar; } };
 
   renderLibrary();
   renderTray();
   updateCandidates({ hands: 0, top: [] });
+  // the trained model ships next to the page; the single-file build fetches it from GitHub Pages
+  if (model && window.ort) {
+    $("mode-ai").title = "Loading the AI sign model…";
+    model.load(["models/", "https://samadbekyunusalievv.github.io/signai/models/"]).then(() => {
+      $("mode-ai").disabled = false;
+      $("mode-ai").title = `Trained on Google's ASL dataset: ${model.labels.length} signs`;
+      if (mode === "words" && !tray.length) setMode("ai");
+    }).catch(err => {
+      console.warn("AI sign model unavailable:", err);
+      $("mode-ai").title = "AI sign model could not be loaded";
+    });
+  } else {
+    $("mode-ai").title = "AI sign model unavailable (onnxruntime-web did not load)";
+  }
   startCamera();
 })();

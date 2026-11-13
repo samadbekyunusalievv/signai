@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node tools/build-single.js",
     "start": "python3 -m http.server 8000",
-    "test": "node tests/recognizer.test.js && node tests/mock-llm.test.js"
+    "test": "node tests/recognizer.test.js && node tests/mock-llm.test.js && node tests/sign-model.test.js"
   },
   "license": "MIT"
 }
